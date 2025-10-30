@@ -70,6 +70,65 @@ const guessCache = new Map();
 const seasonDataCache = new Map();
 let currentResultsToken = 0;
 
+const guessStatEls = {
+  avgValue: document.getElementById('guess-avg-value'),
+  avgNote: document.getElementById('guess-avg-note'),
+  lowValue: document.getElementById('guess-low-value'),
+  lowNote: document.getElementById('guess-low-note'),
+  highValue: document.getElementById('guess-high-value'),
+  highNote: document.getElementById('guess-high-note')
+};
+
+function formatGuessNameList(entries) {
+  const names = (entries || [])
+    .map(entry => (entry && entry.name ? entry.name.trim() : 'Unknown'))
+    .filter((name, idx, arr) => name && arr.indexOf(name) === idx);
+  if (!names.length) return '—';
+  if (names.length > 3) {
+    const remaining = names.length - 3;
+    return `${names.slice(0, 3).join(', ')} +${remaining} more`;
+  }
+  return names.join(', ');
+}
+
+function setGuessStatsMessage(message) {
+  if (!guessStatEls.avgValue) return;
+  guessStatEls.avgValue.textContent = '--';
+  guessStatEls.avgNote.textContent = message;
+  guessStatEls.lowValue.textContent = '--';
+  guessStatEls.lowNote.textContent = message;
+  guessStatEls.highValue.textContent = '--';
+  guessStatEls.highNote.textContent = message;
+}
+
+function setGuessStatsData(guesses) {
+  if (!guessStatEls.avgValue) return;
+  const valid = (guesses || []).filter(entry => entry && Number.isFinite(entry.guess));
+  if (!valid.length) {
+    setGuessStatsMessage('No guesses submitted yet.');
+    return;
+  }
+
+  const sum = valid.reduce((acc, entry) => acc + entry.guess, 0);
+  const avg = sum / valid.length;
+  guessStatEls.avgValue.textContent = formatInches(avg);
+  guessStatEls.avgNote.textContent = `${valid.length} ${valid.length === 1 ? 'entry' : 'entries'}`;
+
+  const epsilon = 1e-6;
+  const minValue = Math.min(...valid.map(entry => entry.guess));
+  const maxValue = Math.max(...valid.map(entry => entry.guess));
+  const minEntries = valid.filter(entry => Math.abs(entry.guess - minValue) < epsilon);
+  const maxEntries = valid.filter(entry => Math.abs(entry.guess - maxValue) < epsilon);
+
+  guessStatEls.lowValue.textContent = formatInches(minValue);
+  const lowNames = formatGuessNameList(minEntries);
+  guessStatEls.lowNote.textContent = lowNames === '—' ? '—' : `by ${lowNames}`;
+
+  guessStatEls.highValue.textContent = formatInches(maxValue);
+  const highNames = formatGuessNameList(maxEntries);
+  guessStatEls.highNote.textContent = highNames === '—' ? '—' : `by ${highNames}`;
+}
+
 function formatInches(value) {
   if (value == null || Number.isNaN(value)) {
     return '--';
@@ -291,6 +350,8 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     return;
   }
 
+  setGuessStatsMessage('Loading guesses…');
+
   const token = ++currentResultsToken;
   const parsedYear = parseInt(startYearInput, 10);
   const fallbackLabel = Number.isFinite(parsedYear) ? `${parsedYear}-${parsedYear + 1}` : null;
@@ -304,6 +365,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   if (!Number.isFinite(parsedYear)) {
     officialEl.textContent = 'Select a season above to view contest results.';
     seasonalEl.textContent = 'Select a season above to view contest results.';
+    setGuessStatsMessage('Select a season to view guesses.');
     return;
   }
 
@@ -311,6 +373,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   if (!config) {
     officialEl.innerHTML = 'No guess sheet was found for this season.';
     seasonalEl.innerHTML = 'No guess sheet was found for this season.';
+    setGuessStatsMessage('Guess sheet not found for this season.');
     return;
   }
 
@@ -324,6 +387,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
       if (token !== currentResultsToken) return;
       officialEl.innerHTML = 'Unable to load guesses for this season.';
       seasonalEl.innerHTML = 'Unable to load guesses for this season.';
+      setGuessStatsMessage('Unable to load guess data.');
       return;
     }
   }
@@ -333,8 +397,11 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     const msg = 'No guesses submitted yet.';
     officialEl.innerHTML = msg;
     seasonalEl.innerHTML = msg;
+    setGuessStatsMessage('No guesses submitted yet.');
     return;
   }
+
+  setGuessStatsData(guesses);
 
   if (seasonDataOverride) {
     seasonDataCache.set(parsedYear, seasonDataOverride);
