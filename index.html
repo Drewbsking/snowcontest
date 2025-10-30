@@ -293,34 +293,31 @@ const contestHighlightPlugin = {
 
     const start = Math.min(startIndex, endIndex);
     const end = Math.max(startIndex, endIndex);
-    const left = edgeForIndex(xScale, start, -1);
-    const right = edgeForIndex(xScale, end, 1);
-    if (right <= left) return;
+    const step = getCategoryStep(xScale);
+    const leftCenter = xScale.getPixelForTick(start);
+    const rightCenter = xScale.getPixelForTick(end);
+    const leftEdge = Math.max(xScale.left, leftCenter - step / 2);
+    const rightEdge = Math.min(xScale.right, rightCenter + step / 2);
+    if (rightEdge <= leftEdge) return;
 
     const { top, bottom } = chart.chartArea;
     const ctx = chart.ctx;
     ctx.save();
     ctx.fillStyle = cfg.color || 'rgba(13,148,136,0.28)';
-    ctx.fillRect(left, top, right - left, bottom - top);
+    ctx.fillRect(leftEdge, top, rightEdge - leftEdge, bottom - top);
     ctx.restore();
   }
 };
 
-function edgeForIndex(scale, index, direction) {
-  if (!scale || !scale.ticks || scale.ticks.length === 0) {
-    return scale?.left ?? 0;
+function getCategoryStep(scale) {
+  if (!scale || !scale.ticks || scale.ticks.length <= 1) {
+    return scale?.width ?? 0;
   }
-  if (direction < 0) {
-    if (index <= 0) return scale.left;
-    const curr = scale.getPixelForTick(index);
-    const prev = scale.getPixelForTick(index - 1);
-    return (curr + prev) / 2;
-  }
-  const last = scale.ticks.length - 1;
-  if (index >= last) return scale.right;
-  const curr = scale.getPixelForTick(index);
-  const next = scale.getPixelForTick(index + 1);
-  return (curr + next) / 2;
+  const first = scale.getPixelForTick(0);
+  const second = scale.getPixelForTick(1);
+  const step = Math.abs(second - first);
+  if (step > 0) return step;
+  return scale.width / Math.max(scale.ticks.length, 1);
 }
 
 let chartRef = null;
@@ -421,7 +418,11 @@ async function loadSeason(startYear) {
     json.daily.forEach(row => {
       labels.push(row.date);
       dailySnow.push(row.snow === null ? null : row.snow);
-      cumSnow.push(row.cum);
+      if (row.date >= contestStart && row.date <= contestEnd) {
+        cumSnow.push(row.cum);
+      } else {
+        cumSnow.push(null);
+      }
     });
 
     drawChart(labels, dailySnow, cumSnow, {
