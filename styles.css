@@ -19,41 +19,45 @@ body {
   overflow-x: hidden;
 }
 
-body::before,
-body::after {
-  content: "";
+.snow-layer {
+  pointer-events: none;
   position: fixed;
   inset: 0;
-  pointer-events: none;
+  overflow: hidden;
   z-index: 0;
-  background-repeat: repeat;
-  opacity: 0.22;
-  mix-blend-mode: lighten;
 }
 
-body::before {
-  background-image:
-    radial-gradient(2px 2px at 20px 20px, rgba(255,255,255,0.35) 0, rgba(255,255,255,0) 60%);
-  background-size: 140px 180px;
-  animation: snowfall-slow 18s linear infinite;
+.snowflake {
+  position: absolute;
+  top: -10px;
+  color: rgba(226,232,240,0.7);
+  font-size: 0.6rem;
+  line-height: 1;
+  user-select: none;
+  animation-name: fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  filter: blur(0.5px);
+  text-shadow:
+    0 0 6px rgba(226,232,240,0.4),
+    0 0 12px rgba(226,232,240,0.2);
 }
 
-body::after {
-  background-image:
-    radial-gradient(1.5px 1.5px at 40px 30px, rgba(255,255,255,0.3) 0, rgba(255,255,255,0) 55%);
-  background-size: 110px 130px;
-  animation: snowfall-fast 12s linear infinite;
-  opacity: 0.16;
+@keyframes fall {
+  0% {
+    transform: translate3d(var(--x, 0vw), -10px, 0) rotate(0deg);
+    opacity: var(--o, 0.7);
+  }
+  100% {
+    transform: translate3d(var(--x-end, 0vw), 110vh, 0) rotate(360deg);
+    opacity: 0;
+  }
 }
 
-@keyframes snowfall-slow {
-  from { transform: translate3d(0, -40px, 0); }
-  to   { transform: translate3d(-30px, 40px, 0); }
-}
-
-@keyframes snowfall-fast {
-  from { transform: translate3d(0, -60px, 0); }
-  to   { transform: translate3d(20px, 60px, 0); }
+@media (max-width: 480px) {
+  .snow-layer {
+    display: none;
+  }
 }
 
 .top-nav-shell {

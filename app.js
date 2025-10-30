@@ -1005,3 +1005,34 @@ seasonSelectEl.addEventListener('change', (e) => {
   updateContestResults(selectedYear);
   loadSeason(selectedYear);
 });
+
+// Subtle snow generator
+(function makeSnow() {
+  const container = document.querySelector('.snow-layer');
+  if (!container) return;
+
+  const FLAKE_COUNT = 30;
+
+  for (let i = 0; i < FLAKE_COUNT; i++) {
+    const flake = document.createElement('div');
+    flake.className = 'snowflake';
+    flake.textContent = '✻';
+
+    const startXvw = Math.random() * 100;
+    const driftVw = Math.random() * 10 - 5;
+    const opacity = (0.4 + Math.random() * 0.4).toFixed(2);
+    const sizeRem = (0.4 + Math.random() * 0.6).toFixed(2);
+    const duration = (8 + Math.random() * 8).toFixed(2);
+    const delay = (Math.random() * 8).toFixed(2);
+
+    flake.style.left = `${startXvw}vw`;
+    flake.style.setProperty('--x', '0vw');
+    flake.style.setProperty('--x-end', `${driftVw}vw`);
+    flake.style.setProperty('--o', opacity);
+    flake.style.fontSize = `${sizeRem}rem`;
+    flake.style.animationDuration = `${duration}s`;
+    flake.style.animationDelay = `${delay}s`;
+
+    container.appendChild(flake);
+  }
+})();
