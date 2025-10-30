@@ -233,6 +233,11 @@
         <div class="total-value" id="seasonal-total-value">--</div>
         <div class="total-note">Jul&nbsp;1 → Jun&nbsp;30 snowfall</div>
       </div>
+      <div class="total-box">
+        <div class="total-subhead">Largest Daily Storm</div>
+        <div class="total-value" id="largest-storm-value">--</div>
+        <div class="total-note" id="largest-storm-note">Awaiting data…</div>
+      </div>
     </div>
 
     <div class="footnote">
@@ -275,6 +280,8 @@
 
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
 <script>
 const contestHighlightPlugin = {
@@ -380,6 +387,8 @@ async function loadSeason(startYear) {
       document.getElementById('seasonal-range-label').textContent = '';
       document.getElementById('contest-total-value').textContent = '--';
       document.getElementById('seasonal-total-value').textContent = '--';
+      document.getElementById('largest-storm-value').textContent = '--';
+      document.getElementById('largest-storm-note').textContent = 'Unable to load';
       console.error(json.error);
 
       drawChart([], [], [], [], null);
@@ -416,13 +425,32 @@ async function loadSeason(startYear) {
     const dailySnow = [];
     const contestCum = [];
     const seasonalCum = [];
+    let largestDailyValue = null;
+    let largestDailyDate = null;
 
     json.daily.forEach(row => {
       labels.push(row.date);
       dailySnow.push(row.snow === null ? null : row.snow);
       contestCum.push(row.contest_cum === null ? null : row.contest_cum);
       seasonalCum.push(row.seasonal_cum ?? null);
+
+      if (row.snow !== null && !Number.isNaN(row.snow)) {
+        if (largestDailyValue === null || row.snow > largestDailyValue) {
+          largestDailyValue = row.snow;
+          largestDailyDate = row.date;
+        }
+      }
     });
+
+    const largestStormValueEl = document.getElementById('largest-storm-value');
+    const largestStormNoteEl = document.getElementById('largest-storm-note');
+    if (largestDailyValue !== null) {
+      largestStormValueEl.textContent = largestDailyValue.toFixed(1);
+      largestStormNoteEl.textContent = largestDailyDate ? `On ${largestDailyDate}` : '';
+    } else {
+      largestStormValueEl.textContent = '--';
+      largestStormNoteEl.textContent = 'No measurable snow';
+    }
 
     drawChart(labels, dailySnow, contestCum, seasonalCum, {
       start: contestStart,
@@ -442,6 +470,8 @@ async function loadSeason(startYear) {
     document.getElementById('seasonal-range-label').textContent = '';
     document.getElementById('contest-total-value').textContent = '--';
     document.getElementById('seasonal-total-value').textContent = '--';
+    document.getElementById('largest-storm-value').textContent = '--';
+    document.getElementById('largest-storm-note').textContent = 'Unable to load';
     drawChart([], [], [], [], null);
     setLoading(false);
   }
@@ -474,8 +504,8 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
   const barBorderWidths = [];
   const baseColor = 'rgba(34,197,94,0.85)';
   const baseBorder = 'rgba(134,239,172,0.9)';
-  const highlightColor = 'rgba(250,204,21,0.95)';
-  const highlightBorder = 'rgba(253,224,71,1)';
+  const highlightColor = 'rgba(248,113,113,0.95)';
+  const highlightBorder = 'rgba(239,68,68,1)';
   const highlightWidth = 2;
 
   let maxDailySnow = null;
@@ -507,8 +537,60 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
     barBorderWidths.push(0);
   });
 
+  let resolvedZoomPlugin = null;
+  if (typeof window !== 'undefined') {
+    const zoomGlobal = window.ChartZoom || window['chartjs-plugin-zoom'] || null;
+    resolvedZoomPlugin = zoomGlobal && zoomGlobal.default ? zoomGlobal.default : zoomGlobal;
+  }
+
+  const chartPlugins = [contestHighlightPlugin];
+  if (resolvedZoomPlugin) {
+    chartPlugins.push(resolvedZoomPlugin);
+  }
+
+  const pluginOptions = {
+    legend: {
+      labels: {
+        color: 'rgba(226,232,240,1)' // slate-200
+      }
+    },
+    tooltip: {
+      callbacks: {
+        title: (items) => {
+          if (items.length > 0) {
+            return items[0].label;
+          }
+        }
+      }
+    },
+    contestHighlight: highlightOpts
+  };
+
+  if (resolvedZoomPlugin) {
+    pluginOptions.zoom = {
+      limits: {
+        x: { min: 'original', max: 'original' },
+        y: { min: 'original', max: 'original' }
+      },
+      pan: {
+        enabled: true,
+        mode: 'x',
+        modifierKey: 'shift'
+      },
+      zoom: {
+        wheel: {
+          enabled: true
+        },
+        pinch: {
+          enabled: true
+        },
+        mode: 'x'
+      }
+    };
+  }
+
   chartRef = new Chart(ctx, {
-    plugins: [contestHighlightPlugin],
+    plugins: chartPlugins,
     data: {
       labels,
       datasets: [
@@ -555,23 +637,7 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
         mode: 'index',
         intersect: false
       },
-      plugins: {
-        legend: {
-          labels: {
-            color: 'rgba(226,232,240,1)' // slate-200
-          }
-        },
-        tooltip: {
-          callbacks: {
-            title: (items) => {
-              if (items.length > 0) {
-                return items[0].label;
-              }
-            }
-          }
-        },
-        contestHighlight: highlightOpts
-      },
+      plugins: pluginOptions,
       scales: {
         x: {
           ticks: {
