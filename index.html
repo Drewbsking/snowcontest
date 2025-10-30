@@ -327,8 +327,8 @@
     <div class="chart-card-header">
       <span>Contest Leaders</span>
       <span class="chart-sub">
-        Completed seasons list their champions by closeness to the final contest total.
-        The active season shows who is leading based on the latest snowfall.
+        Completed seasons list their champions using closest-without-going-over scoring.
+        The active season shows who currently leads under the same rule set.
       </span>
     </div>
 
@@ -444,14 +444,17 @@ function escapeHtml(value) {
   });
 }
 
-function describeDiff(diff) {
-  if (diff == null || Number.isNaN(diff)) {
+function describeMargin(margin, wentOver) {
+  if (margin == null || Number.isNaN(margin)) {
     return '';
   }
-  if (diff < 0.05) {
-    return Math.abs(diff) < 1e-6 ? 'exact match' : `${formatInches(diff)}" off`;
+  if (wentOver) {
+    return `over by ${formatInches(margin)}"`;
   }
-  return `${formatInches(diff)}" off`;
+  if (margin < 1e-6) {
+    return 'exact match';
+  }
+  return `within ${formatInches(margin)}"`;
 }
 
 async function fetchGuessSheet(config) {
@@ -510,19 +513,52 @@ async function fetchSeasonTotals(startYear) {
   return json;
 }
 
-function pickClosest(guesses, target) {
+function pickPriceIsRightResult(guesses, target) {
   if (!Array.isArray(guesses) || !Number.isFinite(target)) {
-    return [];
+    return { winners: [], margin: null, allOver: false };
   }
-  const scored = guesses
-    .map(entry => ({
-      ...entry,
-      diff: Math.abs(entry.guess - target)
-    }))
-    .filter(entry => Number.isFinite(entry.diff));
-  if (!scored.length) return [];
-  const minDiff = Math.min(...scored.map(entry => entry.diff));
-  return scored.filter(entry => Math.abs(entry.diff - minDiff) < 1e-6);
+
+  const epsilon = 1e-6;
+  const eligible = [];
+  const over = [];
+
+  guesses.forEach(entry => {
+    if (!entry || !Number.isFinite(entry.guess)) {
+      return;
+    }
+    const delta = target - entry.guess;
+    if (delta >= -epsilon) {
+      eligible.push({ entry, margin: Math.max(delta, 0) });
+    } else {
+      over.push({ entry, margin: Math.abs(delta) });
+    }
+  });
+
+  if (eligible.length) {
+    const minMargin = Math.min(...eligible.map(item => item.margin));
+    const winners = eligible
+      .filter(item => Math.abs(item.margin - minMargin) < epsilon)
+      .map(item => ({
+        ...item.entry,
+        margin: item.margin,
+        wentOver: false
+      }));
+    return { winners, margin: minMargin, allOver: false };
+  }
+
+  if (over.length) {
+    const minOver = Math.min(...over.map(item => item.margin));
+    const closest = over
+      .filter(item => Math.abs(item.margin - minOver) < epsilon)
+      .map(item => ({
+        ...item.entry,
+        margin: item.margin,
+        wentOver: true
+      }));
+    return { winners: closest, margin: minOver, allOver: true };
+  }
+
+  return { winners: [], margin: null, allOver: false };
 }
 
 async function loadContestResults(currentStartYear) {
@@ -559,16 +595,18 @@ async function loadContestResults(currentStartYear) {
       const contestTotalRaw = (seasonData.contest_total_snow_in ?? seasonData.total_snow_in);
       const contestTotalParsed = contestTotalRaw != null ? parseFloat(contestTotalRaw) : null;
       const contestTotal = Number.isFinite(contestTotalParsed) ? contestTotalParsed : null;
-      const winners = contestTotal != null ? pickClosest(guesses, contestTotal) : [];
+      const result = contestTotal != null
+        ? pickPriceIsRightResult(guesses, contestTotal)
+        : { winners: [], margin: null, allOver: false };
 
       entries.push({
         startYear: config.startYear,
         seasonLabel,
         contestTotal,
-        winners,
         guesses,
         completed,
-        contestEnd
+        contestEnd,
+        result
       });
     } catch (err) {
       console.error('Failed loading contest results for', config.startYear, err);
@@ -576,7 +614,7 @@ async function loadContestResults(currentStartYear) {
   }
 
   const completedSeasons = entries
-    .filter(entry => entry.completed && entry.winners.length)
+    .filter(entry => entry.completed)
     .sort((a, b) => b.startYear - a.startYear);
 
   if (!completedSeasons.length) {
@@ -586,18 +624,40 @@ async function loadContestResults(currentStartYear) {
     completedSeasons.forEach(entry => {
       const li = document.createElement('li');
       li.className = 'result-line';
-      const winnerNames = entry.winners
-        .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-        .join(', ');
-      const diffLabel = describeDiff(entry.winners[0]?.diff);
       const seasonLabelEsc = escapeHtml(entry.seasonLabel);
-      li.innerHTML = `
-        <strong>${seasonLabelEsc}</strong>
-        <div class="result-detail">
-          Winner${entry.winners.length > 1 ? 's' : ''}: <span class="result-highlight">${winnerNames}</span>
-          · Final: ${formatInches(entry.contestTotal)}"${diffLabel ? ` · ${diffLabel}` : ''}
-        </div>
-      `;
+      const { winners, margin, allOver } = entry.result || { winners: [], margin: null, allOver: false };
+
+      if (winners.length && !allOver) {
+        const winnerNames = winners
+          .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+          .join(', ');
+        const marginLabel = describeMargin(margin, false);
+        li.innerHTML = `
+          <strong>${seasonLabelEsc}</strong>
+          <div class="result-detail">
+            Winner${winners.length > 1 ? 's' : ''}: <span class="result-highlight">${winnerNames}</span>
+            · Final: ${formatInches(entry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
+          </div>
+        `;
+      } else if (winners.length && allOver) {
+        const closestNames = winners
+          .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+          .join(', ');
+        const marginLabel = describeMargin(margin, true);
+        li.innerHTML = `
+          <strong>${seasonLabelEsc}</strong>
+          <div class="result-detail">
+            No qualifying winner (all guesses over). Closest over guess: <span class="result-highlight">${closestNames}</span>
+            · Final: ${formatInches(entry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
+          </div>
+        `;
+      } else {
+        li.innerHTML = `
+          <strong>${seasonLabelEsc}</strong>
+          <div class="result-detail">Contest completed but no valid guesses recorded.</div>
+        `;
+      }
+
       completedListEl.appendChild(li);
     });
   }
@@ -608,22 +668,35 @@ async function loadContestResults(currentStartYear) {
     return;
   }
   if (currentEntry.completed) {
-    if (currentEntry.winners.length) {
-      const winnerNames = currentEntry.winners
+    const { winners, margin, allOver } = currentEntry.result || { winners: [], margin: null, allOver: false };
+    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+    if (winners.length && !allOver) {
+      const winnerNames = winners
         .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
         .join(', ');
-      const diffLabel = describeDiff(currentEntry.winners[0]?.diff);
-      const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+      const marginLabel = describeMargin(margin, false);
       currentSeasonEl.innerHTML = `
         <strong>${seasonLabelEsc}</strong>
         <div class="result-detail">
-          Contest completed — Winner${currentEntry.winners.length > 1 ? 's' : ''}:
+          Contest completed — Winner${winners.length > 1 ? 's' : ''}:
           <span class="result-highlight">${winnerNames}</span>
-          · Final: ${formatInches(currentEntry.contestTotal)}"${diffLabel ? ` · ${diffLabel}` : ''}
+          · Final: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
+        </div>
+      `;
+    } else if (winners.length && allOver) {
+      const closestNames = winners
+        .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+        .join(', ');
+      const marginLabel = describeMargin(margin, true);
+      currentSeasonEl.innerHTML = `
+        <strong>${seasonLabelEsc}</strong>
+        <div class="result-detail">
+          Contest completed — No qualifying winner (all guesses over).
+          Closest over guess: <span class="result-highlight">${closestNames}</span>
+          · Final: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
         </div>
       `;
     } else {
-      const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
       currentSeasonEl.innerHTML = `
         <strong>${seasonLabelEsc}</strong>
         <div class="result-detail">Contest completed but no valid guesses recorded.</div>
@@ -650,7 +723,9 @@ async function loadContestResults(currentStartYear) {
     return;
   }
 
-  const leaders = pickClosest(currentEntry.guesses, currentEntry.contestTotal);
+  const currentResult = pickPriceIsRightResult(currentEntry.guesses, currentEntry.contestTotal);
+  currentEntry.result = currentResult;
+  const leaders = currentResult.winners;
   if (!leaders.length) {
     const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
     currentSeasonEl.innerHTML = `
@@ -660,19 +735,33 @@ async function loadContestResults(currentStartYear) {
     return;
   }
 
-  const leaderNames = leaders
-    .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-    .join(', ');
-  const diffLabel = describeDiff(leaders[0].diff);
   const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
-
-  currentSeasonEl.innerHTML = `
-    <strong>${seasonLabelEsc}</strong>
-    <div class="result-detail">
-      Current leader${leaders.length > 1 ? 's' : ''}: <span class="result-highlight">${leaderNames}</span>
-      · Contest total so far: ${formatInches(currentEntry.contestTotal)}"${diffLabel ? ` · ${diffLabel}` : ''}
-    </div>
-  `;
+  if (currentResult.allOver) {
+    const closestNames = leaders
+      .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+      .join(', ');
+    const marginLabel = describeMargin(currentResult.margin, true);
+    currentSeasonEl.innerHTML = `
+      <strong>${seasonLabelEsc}</strong>
+      <div class="result-detail">
+        No leader yet — all guesses are still above the current total.
+        Closest over guess: <span class="result-highlight">${closestNames}</span>
+        · Contest total so far: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
+      </div>
+    `;
+  } else {
+    const leaderNames = leaders
+      .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+      .join(', ');
+    const marginLabel = describeMargin(currentResult.margin, false);
+    currentSeasonEl.innerHTML = `
+      <strong>${seasonLabelEsc}</strong>
+      <div class="result-detail">
+        Current leader${leaders.length > 1 ? 's' : ''}: <span class="result-highlight">${leaderNames}</span>
+        · Contest total so far: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
+      </div>
+    `;
+  }
 }
 
 // Build dropdown with recent contest seasons
@@ -1024,9 +1113,15 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
 populateSeasonDropdown();
 
 const seasonSelectEl = document.getElementById('seasonSelect');
-const initialYear = seasonSelectEl.options[0].value;
-loadSeason(initialYear);
-loadContestResults(parseInt(initialYear, 10));
+const initialYearOption = seasonSelectEl.options[0]?.value;
+if (initialYearOption) {
+  loadSeason(initialYearOption);
+  const parsed = parseInt(initialYearOption, 10);
+  const contestStartYear = Number.isNaN(parsed) ? new Date().getFullYear() : parsed;
+  loadContestResults(contestStartYear);
+} else {
+  loadContestResults(new Date().getFullYear());
+}
 
 // when the user changes the dropdown, load that year
 seasonSelectEl.addEventListener('change', (e) => {
