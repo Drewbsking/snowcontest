@@ -44,6 +44,7 @@ function getCategoryStep(scale) {
 
 let chartRef = null;
 let currentController = null; // to cancel in-flight fetches
+let guessHistogramChart = null;
 
 function setLoading(isLoading) {
   const overlay = document.getElementById('loading-overlay');
@@ -99,6 +100,7 @@ function setGuessStatsMessage(message) {
   guessStatEls.lowNote.textContent = message;
   guessStatEls.highValue.textContent = '--';
   guessStatEls.highNote.textContent = message;
+  renderGuessHistogram([]);
 }
 
 function setGuessStatsData(guesses) {
@@ -127,6 +129,8 @@ function setGuessStatsData(guesses) {
   guessStatEls.highValue.textContent = formatInches(maxValue);
   const highNames = formatGuessNameList(maxEntries);
   guessStatEls.highNote.textContent = highNames === '—' ? '—' : `by ${highNames}`;
+
+  renderGuessHistogram(valid);
 }
 
 function determineLastDataDate(dailyRows) {
@@ -142,6 +146,120 @@ function determineLastDataDate(dailyRows) {
     }
   }
   return null;
+}
+
+function renderGuessHistogram(entries) {
+  const canvas = document.getElementById('guessHistogram');
+  if (!canvas) return;
+  if (guessHistogramChart) {
+    guessHistogramChart.destroy();
+    guessHistogramChart = null;
+  }
+  if (!Array.isArray(entries) || !entries.length) {
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const values = entries.map(entry => entry.guess).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!values.length) return;
+
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const span = Math.max(maxVal - minVal, 1);
+  const desiredBins = Math.min(10, Math.max(4, Math.round(Math.sqrt(values.length))));
+  const binSize = normalizeBinSize(span, desiredBins);
+  const start = Math.floor(minVal / binSize) * binSize;
+  const end = Math.ceil(maxVal / binSize) * binSize;
+  const binCount = Math.max(1, Math.ceil((end - start) / binSize));
+  const counts = new Array(binCount).fill(0);
+
+  values.forEach(val => {
+    const idx = Math.min(binCount - 1, Math.floor((val - start) / binSize));
+    if (idx >= 0 && idx < counts.length) {
+      counts[idx] += 1;
+    }
+  });
+
+  const labels = counts.map((_, idx) => {
+    const lo = start + idx * binSize;
+    const hi = lo + binSize;
+    return formatGuessRange(lo, hi, binSize);
+  });
+
+  guessHistogramChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Guess count',
+          data: counts,
+          backgroundColor: 'rgba(56,189,248,0.35)',
+          borderColor: 'rgba(56,189,248,0.65)',
+          borderWidth: 1,
+          borderRadius: 4,
+          maxBarThickness: 36,
+          hoverBackgroundColor: 'rgba(56,189,248,0.5)'
+        }
+      ]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(51,65,85,0.35)'
+          },
+          ticks: {
+            color: 'rgba(148,163,184,0.95)',
+            autoSkip: false,
+            maxRotation: 0,
+            font: {
+              size: 11
+            }
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(51,65,85,0.3)'
+          },
+          ticks: {
+            precision: 0,
+            color: 'rgba(148,163,184,0.95)'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => items[0]?.label ?? '',
+            label: (item) => `${item.parsed.y} guess${item.parsed.y === 1 ? '' : 'es'}`
+          }
+        }
+      }
+    }
+  });
+}
+
+function normalizeBinSize(span, desiredBins) {
+  const rawSize = span / Math.max(desiredBins, 1);
+  const steps = [0.5, 1, 2, 5, 10, 20, 25, 50];
+  for (const step of steps) {
+    if (rawSize <= step) return step;
+  }
+  return steps[steps.length - 1];
+}
+
+function formatGuessRange(lo, hi, binSize) {
+  const decimals = binSize < 1 ? 1 : 0;
+  const format = (value) => value.toFixed(decimals).replace(/\.0$/, '');
+  return `${format(lo)}–${format(hi)}"`;
 }
 
 function formatInches(value) {

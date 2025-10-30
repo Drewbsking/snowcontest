@@ -359,6 +359,20 @@ label[for="seasonSelect"] {
   color: var(--text-dim);
 }
 
+.guess-chart-box {
+  margin-top: .6rem;
+  padding: .75rem .85rem 0.5rem;
+  background: rgba(15,23,42,0.35);
+  border: 1px solid rgba(71,85,105,0.45);
+  border-radius: .75rem;
+  height: clamp(200px, 30vh, 320px);
+}
+
+.guess-chart-box canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .result-line {
   display: flex;
   flex-direction: column;
@@ -459,6 +473,10 @@ label[for="seasonSelect"] {
 
   .guess-stats-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .guess-chart-box {
+    height: clamp(220px, 28vh, 360px);
   }
 }
 
