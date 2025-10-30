@@ -211,6 +211,28 @@ label[for="seasonSelect"] {
   line-height: 1.3;
 }
 
+.data-toolbar {
+  margin-top: .4rem;
+  font-size: .78rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.data-link {
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+.data-link:hover {
+  text-decoration: underline;
+}
+
+.data-sep { color: var(--text-dim); }
+.data-source { color: var(--text-dim); }
+
 .chart-box {
   position: relative;
   width: 100%;

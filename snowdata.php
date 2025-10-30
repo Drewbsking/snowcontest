@@ -16,7 +16,14 @@
 // ACIS "snow" element is daily snowfall in inches.
 // "M" = missing, "T" = trace (<0.1"), which we treat as 0.0 for totals.
 
-header('Content-Type: application/json');
+// detect csv output early
+$wantCsv = isset($_GET['format']) && strtolower($_GET['format']) === 'csv';
+
+if ($wantCsv) {
+    header('Content-Type: text/csv; charset=UTF-8');
+} else {
+    header('Content-Type: application/json');
+}
 header('Access-Control-Allow-Origin: *');
 date_default_timezone_set('America/Detroit');
 
@@ -76,8 +83,26 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECO
         && $hasDailyFields;
 
     if ($hasNewFields) {
-        echo $cachedRaw;
-        exit;
+        if ($wantCsv && $cached) {
+            // stream CSV from cached JSON
+            $fn = 'snow_' . $startYear . '.csv';
+            header('Content-Disposition: attachment; filename=' . $fn);
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['date','snow','contest_cum','seasonal_cum']);
+            foreach (($cached['daily'] ?? []) as $row) {
+                fputcsv($out, [
+                    $row['date'] ?? '',
+                    is_null($row['snow'] ?? null) ? '' : $row['snow'],
+                    is_null($row['contest_cum'] ?? null) ? '' : $row['contest_cum'],
+                    is_null($row['seasonal_cum'] ?? null) ? '' : $row['seasonal_cum']
+                ]);
+            }
+            fclose($out);
+            exit;
+        } else {
+            echo $cachedRaw;
+            exit;
+        }
     }
 }
 
@@ -194,5 +219,22 @@ $payload = [
 // Cache it (success only)
 @file_put_contents($cacheFile, json_encode($payload));
 
-// Send to browser
+if ($wantCsv) {
+    $fn = 'snow_' . $startYear . '.csv';
+    header('Content-Disposition: attachment; filename=' . $fn);
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['date','snow','contest_cum','seasonal_cum']);
+    foreach ($payload['daily'] as $row) {
+        fputcsv($out, [
+            $row['date'] ?? '',
+            is_null($row['snow'] ?? null) ? '' : $row['snow'],
+            is_null($row['contest_cum'] ?? null) ? '' : $row['contest_cum'],
+            is_null($row['seasonal_cum'] ?? null) ? '' : $row['seasonal_cum']
+        ]);
+    }
+    fclose($out);
+    exit;
+}
+
+// Send JSON to browser
 echo json_encode($payload);

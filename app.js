@@ -566,12 +566,23 @@ async function loadSeason(startYear) {
 
     document.getElementById('seasonal-range-label').textContent =
       'Seasonal Snow Year: ' + seasonalStart + ' → ' + seasonalEnd;
+    const srcEl = document.getElementById('data-source');
+    if (srcEl) {
+      const sid = json.station_sid ? ` (SID ${json.station_sid})` : '';
+      srcEl.textContent = `Source: NOAA ACIS – ${json.station_name || 'White Lake 4E'}${sid}`;
+    }
 
     const contestTotal = (json.contest_total_snow_in ?? json.total_snow_in ?? 0).toFixed(1);
     document.getElementById('contest-total-value').textContent = contestTotal;
 
     const seasonalTotal = (json.seasonal_total_in ?? 0).toFixed(1);
     document.getElementById('seasonal-total-value').textContent = seasonalTotal;
+
+    // update data links + source text
+    const parsedYear = parseInt(startYear, 10);
+    if (Number.isFinite(parsedYear)) {
+      syncDataLinks(parsedYear);
+    }
 
     // Prep chart arrays
     const labels = [];
@@ -995,6 +1006,7 @@ const initialYearOption = seasonSelectEl.options[0]?.value;
 if (initialYearOption) {
   updateContestResults(initialYearOption);
   loadSeason(initialYearOption);
+  syncDataLinks(parseInt(initialYearOption, 10));
 } else {
   updateContestResults(NaN);
 }
@@ -1004,6 +1016,7 @@ seasonSelectEl.addEventListener('change', (e) => {
   const selectedYear = e.target.value;
   updateContestResults(selectedYear);
   loadSeason(selectedYear);
+  syncDataLinks(parseInt(selectedYear, 10));
 });
 
 // Subtle snow generator
@@ -1036,3 +1049,16 @@ seasonSelectEl.addEventListener('change', (e) => {
     container.appendChild(flake);
   }
 })();
+
+function syncDataLinks(year) {
+  const jsonLink = document.getElementById('json-link');
+  const csvLink = document.getElementById('csv-link');
+  if (!Number.isFinite(year)) return;
+  const jsonHref = `snowdata.php?startYear=${encodeURIComponent(year)}`;
+  const csvHref = `${jsonHref}&format=csv`;
+  if (jsonLink) jsonLink.href = jsonHref;
+  if (csvLink) {
+    csvLink.href = csvHref;
+    csvLink.setAttribute('download', `snow_${year}.csv`);
+  }
+}
