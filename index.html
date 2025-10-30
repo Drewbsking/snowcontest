@@ -295,6 +295,11 @@
         <div class="total-value" id="largest-storm-value">--</div>
         <div class="total-note" id="largest-storm-note">Awaiting data…</div>
       </div>
+      <div class="total-box">
+        <div class="total-subhead">Snow Drought</div>
+        <div class="total-value" id="snow-drought-value">--</div>
+        <div class="total-note" id="snow-drought-note">Days since ≥0.1"</div>
+      </div>
     </div>
 
     <div class="footnote">
@@ -837,6 +842,11 @@ function populateSeasonDropdown() {
   const seasonSelect = document.getElementById('seasonSelect');
   seasonSelect.innerHTML = '';
 
+  const snowDroughtValueEl = document.getElementById('snow-drought-value');
+  const snowDroughtNoteEl = document.getElementById('snow-drought-note');
+  if (snowDroughtValueEl) snowDroughtValueEl.textContent = '--';
+  if (snowDroughtNoteEl) snowDroughtNoteEl.textContent = 'Days since ≥0.1"';
+
   const now = new Date();
   const month = now.getMonth() + 1; // 1..12
   const year = now.getFullYear();
@@ -931,6 +941,7 @@ async function loadSeason(startYear) {
     const seasonalCum = [];
     let largestDailyValue = null;
     let largestDailyDate = null;
+    let lastSnowDay = null;
 
     json.daily.forEach(row => {
       labels.push(row.date);
@@ -943,6 +954,9 @@ async function loadSeason(startYear) {
           largestDailyValue = row.snow;
           largestDailyDate = row.date;
         }
+        if (row.snow >= 0.1) {
+          lastSnowDay = row.date;
+        }
       }
     });
 
@@ -954,6 +968,46 @@ async function loadSeason(startYear) {
     } else {
       largestStormValueEl.textContent = '--';
       largestStormNoteEl.textContent = 'No measurable snow';
+    }
+
+    const droughtValueEl = document.getElementById('snow-drought-value');
+    const droughtNoteEl = document.getElementById('snow-drought-note');
+    if (droughtValueEl && droughtNoteEl) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayIso = today.toISOString().slice(0, 10);
+
+      const dailyDates = json.daily.map(row => row.date);
+      const finalDate = dailyDates.length ? dailyDates[dailyDates.length - 1] : null;
+
+      if (lastSnowDay) {
+        const lastDate = new Date(lastSnowDay + 'T00:00:00');
+        const days = Math.max(
+          0,
+          Math.floor((today.getTime() - lastDate.getTime()) / 86400000)
+        );
+        droughtValueEl.textContent = days.toString();
+        droughtNoteEl.textContent = `Days since ${lastSnowDay}`;
+      } else if (contestStart && finalDate && finalDate >= contestStart) {
+        const startDate = new Date(contestStart + 'T00:00:00');
+        const days = Math.max(
+          0,
+          Math.floor((today.getTime() - startDate.getTime()) / 86400000)
+        );
+        droughtValueEl.textContent = days.toString();
+        droughtNoteEl.textContent = 'Days since contest start';
+      } else if (seasonalStart) {
+        const startDate = new Date(seasonalStart + 'T00:00:00');
+        const days = Math.max(
+          0,
+          Math.floor((today.getTime() - startDate.getTime()) / 86400000)
+        );
+        droughtValueEl.textContent = days.toString();
+        droughtNoteEl.textContent = 'Days since snow year start';
+      } else {
+        droughtValueEl.textContent = '--';
+        droughtNoteEl.textContent = 'Days since ≥0.1"';
+      }
     }
 
     drawChart(labels, dailySnow, contestCum, seasonalCum, {
