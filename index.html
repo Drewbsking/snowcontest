@@ -244,6 +244,12 @@
       align-items: start;
     }
   }
+
+  @media (min-width: 1024px) {
+    .totals-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
 </style>
 </head>
 <body>
@@ -299,6 +305,21 @@
         <div class="total-subhead">Snow Drought</div>
         <div class="total-value" id="snow-drought-value">--</div>
         <div class="total-note" id="snow-drought-note">Days since ≥0.1"</div>
+      </div>
+      <div class="total-box">
+        <div class="total-subhead">Avg Snowy Day</div>
+        <div class="total-value" id="average-snow-value">--</div>
+        <div class="total-note" id="average-snow-note">Across measurable days</div>
+      </div>
+      <div class="total-box">
+        <div class="total-subhead">First Snowfall</div>
+        <div class="total-value" id="first-snow-value">--</div>
+        <div class="total-note" id="first-snow-note">Awaiting ≥0.1" snow</div>
+      </div>
+      <div class="total-box">
+        <div class="total-subhead">Last Snowfall</div>
+        <div class="total-value" id="last-snow-value">--</div>
+        <div class="total-note" id="last-snow-note">Awaiting ≥0.1" snow</div>
       </div>
     </div>
 
@@ -847,6 +868,21 @@ function populateSeasonDropdown() {
   if (snowDroughtValueEl) snowDroughtValueEl.textContent = '--';
   if (snowDroughtNoteEl) snowDroughtNoteEl.textContent = 'Days since ≥0.1"';
 
+  const avgSnowValueEl = document.getElementById('average-snow-value');
+  const avgSnowNoteEl = document.getElementById('average-snow-note');
+  if (avgSnowValueEl) avgSnowValueEl.textContent = '--';
+  if (avgSnowNoteEl) avgSnowNoteEl.textContent = 'Across measurable days';
+
+  const firstSnowValueEl = document.getElementById('first-snow-value');
+  const firstSnowNoteEl = document.getElementById('first-snow-note');
+  if (firstSnowValueEl) firstSnowValueEl.textContent = '--';
+  if (firstSnowNoteEl) firstSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
+
+  const lastSnowValueEl = document.getElementById('last-snow-value');
+  const lastSnowNoteEl = document.getElementById('last-snow-note');
+  if (lastSnowValueEl) lastSnowValueEl.textContent = '--';
+  if (lastSnowNoteEl) lastSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
+
   const now = new Date();
   const month = now.getMonth() + 1; // 1..12
   const year = now.getFullYear();
@@ -939,19 +975,33 @@ async function loadSeason(startYear) {
     const dailySnow = [];
     const contestCum = [];
     const seasonalCum = [];
+    const measurableThreshold = 0.1;
     let largestDailyValue = null;
     let largestDailyDate = null;
+    let firstSnowDay = null;
+    let lastSnowDay = null;
+    let sumMeasurableSnow = 0;
+    let countMeasurableDays = 0;
 
     json.daily.forEach(row => {
+      const day = parseISODate(row.date);
+      const snowValue = row.snow === null ? null : row.snow;
+
       labels.push(row.date);
-      dailySnow.push(row.snow === null ? null : row.snow);
+      dailySnow.push(snowValue);
       contestCum.push(row.contest_cum === null ? null : row.contest_cum);
       seasonalCum.push(row.seasonal_cum ?? null);
 
-      if (row.snow !== null && !Number.isNaN(row.snow)) {
-        if (largestDailyValue === null || row.snow > largestDailyValue) {
-          largestDailyValue = row.snow;
+      if (typeof snowValue === 'number' && !Number.isNaN(snowValue)) {
+        if (largestDailyValue === null || snowValue > largestDailyValue) {
+          largestDailyValue = snowValue;
           largestDailyDate = row.date;
+        }
+        if (day && snowValue >= measurableThreshold) {
+          if (!firstSnowDay) firstSnowDay = day;
+          lastSnowDay = day;
+          sumMeasurableSnow += snowValue;
+          countMeasurableDays += 1;
         }
       }
     });
@@ -964,6 +1014,52 @@ async function loadSeason(startYear) {
     } else {
       largestStormValueEl.textContent = '--';
       largestStormNoteEl.textContent = 'No measurable snow';
+    }
+
+    const avgSnowValueEl = document.getElementById('average-snow-value');
+    const avgSnowNoteEl = document.getElementById('average-snow-note');
+    if (avgSnowValueEl && avgSnowNoteEl) {
+      if (countMeasurableDays > 0) {
+        const avgSnow = sumMeasurableSnow / countMeasurableDays;
+        avgSnowValueEl.textContent = formatInches(avgSnow);
+        const dayLabel = countMeasurableDays === 1 ? 'day' : 'days';
+        avgSnowNoteEl.textContent = `${countMeasurableDays} ${dayLabel} ≥0.1"`;
+      } else {
+        avgSnowValueEl.textContent = '--';
+        avgSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
+      }
+    }
+
+    const firstSnowValueEl = document.getElementById('first-snow-value');
+    const firstSnowNoteEl = document.getElementById('first-snow-note');
+    if (firstSnowValueEl && firstSnowNoteEl) {
+      if (firstSnowDay) {
+        firstSnowValueEl.textContent = formatDateLabel(firstSnowDay);
+        if (lastSnowDay && lastSnowDay.getTime() === firstSnowDay.getTime()) {
+          firstSnowNoteEl.textContent = 'First & only ≥0.1" day';
+        } else {
+          firstSnowNoteEl.textContent = 'First ≥0.1" snow';
+        }
+      } else {
+        firstSnowValueEl.textContent = '--';
+        firstSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
+      }
+    }
+
+    const lastSnowValueEl = document.getElementById('last-snow-value');
+    const lastSnowNoteEl = document.getElementById('last-snow-note');
+    if (lastSnowValueEl && lastSnowNoteEl) {
+      if (lastSnowDay) {
+        lastSnowValueEl.textContent = formatDateLabel(lastSnowDay);
+        if (firstSnowDay && lastSnowDay.getTime() === firstSnowDay.getTime()) {
+          lastSnowNoteEl.textContent = 'Only ≥0.1" day so far';
+        } else {
+          lastSnowNoteEl.textContent = 'Most recent ≥0.1" snow';
+        }
+      } else {
+        lastSnowValueEl.textContent = '--';
+        lastSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
+      }
     }
 
     const droughtValueEl = document.getElementById('snow-drought-value');
@@ -981,19 +1077,6 @@ async function loadSeason(startYear) {
       if (today < limitDate) {
         limitDate = today;
       }
-
-      const threshold = 0.1;
-      let firstSnowDay = null;
-      let lastSnowDay = null;
-      json.daily.forEach(row => {
-        const day = parseISODate(row.date);
-        if (!day || day > limitDate) return;
-        const snow = row.snow;
-        if (typeof snow === 'number' && !Number.isNaN(snow) && snow >= threshold) {
-          if (!firstSnowDay) firstSnowDay = day;
-          lastSnowDay = day;
-        }
-      });
 
       if (!firstSnowDay) {
         droughtValueEl.textContent = '0';
@@ -1026,7 +1109,7 @@ async function loadSeason(startYear) {
 
           const snow = row.snow;
           if (typeof snow === 'number' && !Number.isNaN(snow)) {
-            if (snow < threshold) {
+            if (snow < measurableThreshold) {
               if (!streakStart) streakStart = day;
               streakEnd = day;
               streakLength += 1;
