@@ -120,44 +120,58 @@ if (!$stnData || !isset($stnData['data'])) {
     exit;
 }
 
-// -------- Build daily + cumulative arrays --------
+// -------- Build daily + cumulative arrays (full seasonal span) --------
+$rowsByDate = [];
+foreach ($stnData['data'] as $row) {
+    $dateKey = $row[0] ?? null;
+    if ($dateKey) {
+        $rowsByDate[$dateKey] = $row[1] ?? 'M';
+    }
+}
+
 $daily = [];
 $cumTotal = 0.0;
 $contestTotal = 0.0;
 $seasonalTotal = 0.0;
 
-foreach ($stnData['data'] as $row) {
-    // $row like ["2025-01-10","2.0"]
-    $date    = $row[0] ?? null;
-    $snowRaw = $row[1] ?? 'M';
+$cursor = new DateTimeImmutable($SEASONAL_START_DATE);
+$seasonEndDt = new DateTimeImmutable($SEASONAL_END_DATE);
+
+for ($dt = $cursor; $dt <= $seasonEndDt; $dt = $dt->modify('+1 day')) {
+    $date = $dt->format('Y-m-d');
+    $snowRaw = $rowsByDate[$date] ?? 'M';
 
     if ($snowRaw === 'M') {
         $snowIn = null;      // no report that day
-        // cumTotal unchanged
     } elseif ($snowRaw === 'T') {
-        $snowIn = 0.0;       // trace
-        // cumTotal += 0
+        $snowIn = 0.0;       // trace counts as 0
     } else {
         $snowIn = floatval($snowRaw);
     }
 
     if ($snowIn !== null) {
-        if ($date >= $SEASONAL_START_DATE && $date <= $SEASONAL_END_DATE) {
-            $seasonalTotal += $snowIn;
-        }
-        if ($date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE) {
-            $contestTotal += $snowIn;
-            $cumTotal += $snowIn;
-        }
+        $seasonalTotal += $snowIn;
     }
 
-    if ($date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE) {
+    if ($snowIn !== null && $date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE) {
+        $contestTotal += $snowIn;
+        $cumTotal += $snowIn;
+    }
+
+    if ($date < $CONTEST_START_DATE || $date > $CONTEST_END_DATE) {
         $daily[] = [
             'date' => $date,
             'snow' => $snowIn,
             'cum'  => $cumTotal
         ];
+        continue;
     }
+
+    $daily[] = [
+        'date' => $date,
+        'snow' => $snowIn,
+        'cum'  => $cumTotal
+    ];
 }
 
 // -------- Final payload structure --------
