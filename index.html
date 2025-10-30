@@ -469,6 +469,44 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
     }
   }
 
+  const barColors = [];
+  const barBorderColors = [];
+  const barBorderWidths = [];
+  const baseColor = 'rgba(34,197,94,0.85)';
+  const baseBorder = 'rgba(134,239,172,0.9)';
+  const highlightColor = 'rgba(250,204,21,0.95)';
+  const highlightBorder = 'rgba(253,224,71,1)';
+  const highlightWidth = 2;
+
+  let maxDailySnow = null;
+  dailySnow.forEach((value) => {
+    if (typeof value === 'number' && !Number.isNaN(value)) {
+      if (maxDailySnow === null || value > maxDailySnow) {
+        maxDailySnow = value;
+      }
+    }
+  });
+
+  dailySnow.forEach((value) => {
+    const isNumeric = typeof value === 'number' && !Number.isNaN(value);
+    const isMax = isNumeric && maxDailySnow !== null && Math.abs(value - maxDailySnow) < 1e-9;
+    if (!isNumeric) {
+      barColors.push('rgba(34,197,94,0.15)');
+      barBorderColors.push('rgba(134,239,172,0.2)');
+      barBorderWidths.push(0);
+      return;
+    }
+    if (isMax) {
+      barColors.push(highlightColor);
+      barBorderColors.push(highlightBorder);
+      barBorderWidths.push(highlightWidth);
+      return;
+    }
+    barColors.push(baseColor);
+    barBorderColors.push(baseBorder);
+    barBorderWidths.push(0);
+  });
+
   chartRef = new Chart(ctx, {
     plugins: [contestHighlightPlugin],
     data: {
@@ -479,8 +517,10 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
           label: 'Daily Snowfall (in)',
           data: dailySnow,
           yAxisID: 'yDaily',
-          borderWidth: 0
-          // default bar color by Chart.js
+          backgroundColor: barColors,
+          borderColor: barBorderColors,
+          borderWidth: barBorderWidths,
+          borderRadius: 3
         },
         {
           type: 'line',
