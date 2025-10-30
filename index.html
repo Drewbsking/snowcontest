@@ -151,6 +151,53 @@
     height: 400px;
   }
 
+  #contest-results-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .results-section-title {
+    font-size: .85rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .results-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .65rem;
+  }
+
+  .result-line {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    background: rgba(15,23,42,0.45);
+    border: 1px solid rgba(71,85,105,0.6);
+    border-radius: .75rem;
+    padding: .75rem;
+  }
+
+  .result-line strong {
+    font-weight: 600;
+    color: var(--text-main);
+  }
+
+  .result-detail {
+    font-size: .85rem;
+    color: var(--text-dim);
+  }
+
+  .result-highlight {
+    font-weight: 500;
+    color: rgba(248,113,113,1);
+  }
+
   /* LOADING OVERLAY */
   .loading-overlay {
     position: absolute;
@@ -276,10 +323,35 @@
     </div>
   </section>
 
+  <section class="card" id="contest-results-card">
+    <div class="chart-card-header">
+      <span>Contest Leaders</span>
+      <span class="chart-sub">
+        Completed seasons list their champions by closeness to the final contest total.
+        The active season shows who is leading based on the latest snowfall.
+      </span>
+    </div>
+
+    <div>
+      <div class="results-section-title">Completed Seasons</div>
+      <ul id="completed-results-list" class="results-list">
+        <li class="result-line">Loading completed seasons…</li>
+      </ul>
+    </div>
+
+    <div>
+      <div class="results-section-title">Current Season Leader</div>
+      <div id="current-season-result" class="result-line">
+        Loading current season leader…
+      </div>
+    </div>
+  </section>
+
 </div>
 
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
@@ -334,6 +406,273 @@ let currentController = null; // to cancel in-flight fetches
 function setLoading(isLoading) {
   const overlay = document.getElementById('loading-overlay');
   overlay.style.display = isLoading ? 'flex' : 'none';
+}
+
+const guessSheetConfigs = [
+  { startYear: 2019, file: '19-20Guesses.xlsx' },
+  { startYear: 2020, file: '20-21Guesses.xlsx' },
+  { startYear: 2021, file: '21-22Guesses.xlsx' },
+  { startYear: 2022, file: '22-23Guesses.xlsx' },
+  { startYear: 2023, file: '23-24Guesses.xlsx' },
+  { startYear: 2024, file: '24-25Guesses.xlsx' },
+  { startYear: 2025, file: '25-26Guesses.xlsx' }
+];
+
+function formatInches(value) {
+  if (value == null || Number.isNaN(value)) {
+    return '--';
+  }
+  const rounded = Math.round(value * 10) / 10;
+  let str = rounded.toFixed(1);
+  if (str.endsWith('.0')) {
+    str = str.slice(0, -2);
+  }
+  return str;
+}
+
+function escapeHtml(value) {
+  if (value == null) return '';
+  return String(value).replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case '\'': return '&#39;';
+      default: return ch;
+    }
+  });
+}
+
+function describeDiff(diff) {
+  if (diff == null || Number.isNaN(diff)) {
+    return '';
+  }
+  if (diff < 0.05) {
+    return Math.abs(diff) < 1e-6 ? 'exact match' : `${formatInches(diff)}" off`;
+  }
+  return `${formatInches(diff)}" off`;
+}
+
+async function fetchGuessSheet(config) {
+  if (typeof XLSX === 'undefined') {
+    throw new Error('XLSX library not loaded');
+  }
+  const res = await fetch(config.file);
+  if (!res.ok) {
+    throw new Error(`Failed to load ${config.file}`);
+  }
+  const arrayBuffer = await res.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    raw: true,
+    defval: null
+  });
+  if (!rows.length) {
+    return [];
+  }
+  const header = rows[0].map(cell => {
+    if (cell == null) return '';
+    return String(cell).trim().toLowerCase();
+  });
+  const nameIdx = header.findIndex(h => h.includes('name') || h.includes('guesser'));
+  const guessIdx = header.findIndex(h => h === 'guess' || h.includes('guess'));
+  const deptIdx = header.findIndex(h => h.includes('dist') || h.includes('dept'));
+
+  return rows.slice(1).map(row => {
+    const rawName = nameIdx >= 0 ? row[nameIdx] : row[0];
+    const rawGuess = guessIdx >= 0 ? row[guessIdx] : row[2];
+    const rawDept = deptIdx >= 0 ? row[deptIdx] : null;
+    const name = rawName == null ? '' : String(rawName).trim();
+    const guessVal = typeof rawGuess === 'number'
+      ? rawGuess
+      : parseFloat(String(rawGuess).replace(/[^0-9.\-]/g, ''));
+    return {
+      name,
+      dept: rawDept == null ? '' : String(rawDept).trim(),
+      guess: Number.isFinite(guessVal) ? guessVal : null
+    };
+  }).filter(entry => entry.name && entry.guess != null);
+}
+
+async function fetchSeasonTotals(startYear) {
+  const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(startYear));
+  if (!res.ok) {
+    throw new Error(`Failed to load snowfall data for ${startYear}`);
+  }
+  const json = await res.json();
+  if (json.error) {
+    throw new Error(json.error);
+  }
+  return json;
+}
+
+function pickClosest(guesses, target) {
+  if (!Array.isArray(guesses) || !Number.isFinite(target)) {
+    return [];
+  }
+  const scored = guesses
+    .map(entry => ({
+      ...entry,
+      diff: Math.abs(entry.guess - target)
+    }))
+    .filter(entry => Number.isFinite(entry.diff));
+  if (!scored.length) return [];
+  const minDiff = Math.min(...scored.map(entry => entry.diff));
+  return scored.filter(entry => Math.abs(entry.diff - minDiff) < 1e-6);
+}
+
+async function loadContestResults(currentStartYear) {
+  const completedListEl = document.getElementById('completed-results-list');
+  const currentSeasonEl = document.getElementById('current-season-result');
+
+  if (!completedListEl || !currentSeasonEl) return;
+
+  if (typeof XLSX === 'undefined') {
+    completedListEl.innerHTML = '<li class="result-line">Unable to load winners (XLSX library missing).</li>';
+    currentSeasonEl.textContent = 'Unable to load without XLSX support.';
+    return;
+  }
+
+  const today = new Date();
+  const entries = [];
+  const relevantConfigs = guessSheetConfigs.filter(cfg => cfg.startYear <= currentStartYear);
+
+  if (!relevantConfigs.length) {
+    completedListEl.innerHTML = '<li class="result-line">No seasons available yet.</li>';
+    currentSeasonEl.textContent = 'No active contest season.';
+    return;
+  }
+
+  for (const config of relevantConfigs) {
+    try {
+      const [guesses, seasonData] = await Promise.all([
+        fetchGuessSheet(config),
+        fetchSeasonTotals(config.startYear)
+      ]);
+      const contestEnd = seasonData.contest_end ? new Date(seasonData.contest_end) : null;
+      const completed = contestEnd ? today > contestEnd : false;
+      const seasonLabel = seasonData.season_label || `${config.startYear}-${config.startYear + 1}`;
+      const contestTotalRaw = (seasonData.contest_total_snow_in ?? seasonData.total_snow_in);
+      const contestTotalParsed = contestTotalRaw != null ? parseFloat(contestTotalRaw) : null;
+      const contestTotal = Number.isFinite(contestTotalParsed) ? contestTotalParsed : null;
+      const winners = contestTotal != null ? pickClosest(guesses, contestTotal) : [];
+
+      entries.push({
+        startYear: config.startYear,
+        seasonLabel,
+        contestTotal,
+        winners,
+        guesses,
+        completed,
+        contestEnd
+      });
+    } catch (err) {
+      console.error('Failed loading contest results for', config.startYear, err);
+    }
+  }
+
+  const completedSeasons = entries
+    .filter(entry => entry.completed && entry.winners.length)
+    .sort((a, b) => b.startYear - a.startYear);
+
+  if (!completedSeasons.length) {
+    completedListEl.innerHTML = '<li class="result-line">No completed seasons available.</li>';
+  } else {
+    completedListEl.innerHTML = '';
+    completedSeasons.forEach(entry => {
+      const li = document.createElement('li');
+      li.className = 'result-line';
+      const winnerNames = entry.winners
+        .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+        .join(', ');
+      const diffLabel = describeDiff(entry.winners[0]?.diff);
+      const seasonLabelEsc = escapeHtml(entry.seasonLabel);
+      li.innerHTML = `
+        <strong>${seasonLabelEsc}</strong>
+        <div class="result-detail">
+          Winner${entry.winners.length > 1 ? 's' : ''}: <span class="result-highlight">${winnerNames}</span>
+          · Final: ${formatInches(entry.contestTotal)}"${diffLabel ? ` · ${diffLabel}` : ''}
+        </div>
+      `;
+      completedListEl.appendChild(li);
+    });
+  }
+
+  const currentEntry = entries.find(entry => entry.startYear === currentStartYear);
+  if (!currentEntry) {
+    currentSeasonEl.textContent = 'Unable to load current season data at this time.';
+    return;
+  }
+  if (currentEntry.completed) {
+    if (currentEntry.winners.length) {
+      const winnerNames = currentEntry.winners
+        .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+        .join(', ');
+      const diffLabel = describeDiff(currentEntry.winners[0]?.diff);
+      const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+      currentSeasonEl.innerHTML = `
+        <strong>${seasonLabelEsc}</strong>
+        <div class="result-detail">
+          Contest completed — Winner${currentEntry.winners.length > 1 ? 's' : ''}:
+          <span class="result-highlight">${winnerNames}</span>
+          · Final: ${formatInches(currentEntry.contestTotal)}"${diffLabel ? ` · ${diffLabel}` : ''}
+        </div>
+      `;
+    } else {
+      const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+      currentSeasonEl.innerHTML = `
+        <strong>${seasonLabelEsc}</strong>
+        <div class="result-detail">Contest completed but no valid guesses recorded.</div>
+      `;
+    }
+    return;
+  }
+
+  if (!currentEntry.guesses.length) {
+    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+    currentSeasonEl.innerHTML = `
+      <strong>${seasonLabelEsc}</strong>
+      <div class="result-detail">No guesses submitted yet.</div>
+    `;
+    return;
+  }
+
+  if (currentEntry.contestTotal == null) {
+    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+    currentSeasonEl.innerHTML = `
+      <strong>${seasonLabelEsc}</strong>
+      <div class="result-detail">Awaiting snowfall data.</div>
+    `;
+    return;
+  }
+
+  const leaders = pickClosest(currentEntry.guesses, currentEntry.contestTotal);
+  if (!leaders.length) {
+    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+    currentSeasonEl.innerHTML = `
+      <strong>${seasonLabelEsc}</strong>
+      <div class="result-detail">No leader could be determined.</div>
+    `;
+    return;
+  }
+
+  const leaderNames = leaders
+    .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
+    .join(', ');
+  const diffLabel = describeDiff(leaders[0].diff);
+  const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
+
+  currentSeasonEl.innerHTML = `
+    <strong>${seasonLabelEsc}</strong>
+    <div class="result-detail">
+      Current leader${leaders.length > 1 ? 's' : ''}: <span class="result-highlight">${leaderNames}</span>
+      · Contest total so far: ${formatInches(currentEntry.contestTotal)}"${diffLabel ? ` · ${diffLabel}` : ''}
+    </div>
+  `;
 }
 
 // Build dropdown with recent contest seasons
@@ -687,6 +1026,7 @@ populateSeasonDropdown();
 const seasonSelectEl = document.getElementById('seasonSelect');
 const initialYear = seasonSelectEl.options[0].value;
 loadSeason(initialYear);
+loadContestResults(parseInt(initialYear, 10));
 
 // when the user changes the dropdown, load that year
 seasonSelectEl.addEventListener('change', (e) => {
