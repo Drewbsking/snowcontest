@@ -129,6 +129,21 @@ function setGuessStatsData(guesses) {
   guessStatEls.highNote.textContent = highNames === '—' ? '—' : `by ${highNames}`;
 }
 
+function determineLastDataDate(dailyRows) {
+  if (!Array.isArray(dailyRows)) return null;
+  for (let i = dailyRows.length - 1; i >= 0; i--) {
+    const row = dailyRows[i];
+    if (!row) continue;
+    const dateStr = row.date;
+    const snowVal = row.snow;
+    if (dateStr && (snowVal !== null && snowVal !== 'M')) {
+      const parsed = parseISODate(dateStr);
+      if (parsed) return parsed;
+    }
+  }
+  return null;
+}
+
 function formatInches(value) {
   if (value == null || Number.isNaN(value)) {
     return '--';
@@ -430,6 +445,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   const seasonalStartStr = seasonData?.seasonal_start || contestStartStr;
   const seasonalEndStr = seasonData?.seasonal_end || contestEndStr;
   const daily = Array.isArray(seasonData?.daily) ? seasonData.daily : [];
+  const dataLastUpdated = determineLastDataDate(daily);
   const today = new Date();
 
   const contestStart = parseISODate(contestStartStr);
@@ -525,6 +541,15 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     seasonalMessage = 'No information available for this season.';
   }
   seasonalEl.innerHTML = seasonalMessage;
+
+  const footerUpdatedEl = document.getElementById('data-updated');
+  if (footerUpdatedEl) {
+    if (dataLastUpdated) {
+      footerUpdatedEl.textContent = `Data updated ${formatDateLabel(dataLastUpdated)}`;
+    } else {
+      footerUpdatedEl.textContent = 'Data updated —';
+    }
+  }
 }
 
 // Build dropdown with recent contest seasons

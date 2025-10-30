@@ -95,6 +95,31 @@ body {
   z-index: 1;
 }
 
+.site-footer {
+  margin-top: clamp(1.5rem, 3vw, 2.5rem);
+  padding-top: clamp(1rem, 2vw, 1.5rem);
+  border-top: 1px solid rgba(71,85,105,0.5);
+  font-size: .78rem;
+  color: var(--text-dim);
+}
+
+.footer-wrap {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+}
+
+.footer-sep {
+  color: rgba(148,163,184,0.6);
+}
+
+.footer-source {
+  color: rgba(148,163,184,0.8);
+}
+
 .card {
   background: var(--panel);
   border-radius: var(--radius);
