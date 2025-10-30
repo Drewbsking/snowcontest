@@ -242,8 +242,8 @@
       </a>.
       Missing days = "M". "T" = trace (&lt;0.1"), counted as 0.0 in totals.
       <br/><br/>
-      Bars = daily snowfall. Line = cumulative contest total (Dec&nbsp;1 → Mar&nbsp;31).
-      Seasonal total tracks Jul&nbsp;1 → Jun&nbsp;30 snowfall.
+      Bars = daily snowfall. Lines = cumulative contest total (Dec&nbsp;1 → Mar&nbsp;31) and
+      seasonal total (Jul&nbsp;1 → Jun&nbsp;30).
       Shaded region marks the contest window.
     </div>
 
@@ -255,8 +255,9 @@
       <span>Daily Snow vs Cumulative Total</span>
       <span class="chart-sub">
         Bars = daily snowfall (inches).
-        Line = cumulative snowfall for the contest window (Dec&nbsp;1 → Mar&nbsp;31).
-        Seasonal totals cover Jul&nbsp;1 → Jun&nbsp;30. Shaded area shows in-season contest days.
+        Lines = cumulative snowfall for the contest window (Dec&nbsp;1 → Mar&nbsp;31)
+        and the full snow year (Jul&nbsp;1 → Jun&nbsp;30).
+        Shaded area shows in-season contest days.
       </span>
     </div>
 
@@ -381,7 +382,7 @@ async function loadSeason(startYear) {
       document.getElementById('seasonal-total-value').textContent = '--';
       console.error(json.error);
 
-      drawChart([], [], [], null);
+      drawChart([], [], [], [], null);
       setLoading(false);
       return;
     }
@@ -413,19 +414,17 @@ async function loadSeason(startYear) {
     // Prep chart arrays
     const labels = [];
     const dailySnow = [];
-    const cumSnow = [];
+    const contestCum = [];
+    const seasonalCum = [];
 
     json.daily.forEach(row => {
       labels.push(row.date);
       dailySnow.push(row.snow === null ? null : row.snow);
-      if (row.date >= contestStart && row.date <= contestEnd) {
-        cumSnow.push(row.cum);
-      } else {
-        cumSnow.push(null);
-      }
+      contestCum.push(row.contest_cum === null ? null : row.contest_cum);
+      seasonalCum.push(row.seasonal_cum ?? null);
     });
 
-    drawChart(labels, dailySnow, cumSnow, {
+    drawChart(labels, dailySnow, contestCum, seasonalCum, {
       start: contestStart,
       end: contestEnd
     });
@@ -443,13 +442,13 @@ async function loadSeason(startYear) {
     document.getElementById('seasonal-range-label').textContent = '';
     document.getElementById('contest-total-value').textContent = '--';
     document.getElementById('seasonal-total-value').textContent = '--';
-    drawChart([], [], [], null);
+    drawChart([], [], [], [], null);
     setLoading(false);
   }
 }
 
 // Draw or redraw Chart.js chart
-function drawChart(labels, dailySnow, cumSnow, highlightRange) {
+function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
   const ctx = document.getElementById('snowChart').getContext('2d');
 
   if (chartRef) {
@@ -485,12 +484,26 @@ function drawChart(labels, dailySnow, cumSnow, highlightRange) {
         },
         {
           type: 'line',
-          label: 'Cumulative Snowfall (in)',
-          data: cumSnow,
+          label: 'Contest Cumulative (in)',
+          data: contestCum,
           yAxisID: 'yCum',
+          borderColor: 'rgba(244,114,182,1)',
+          backgroundColor: 'rgba(244,114,182,0.2)',
           borderWidth: 2,
           pointRadius: 0,
           tension: 0.25,
+          fill: false
+        },
+        {
+          type: 'line',
+          label: 'Seasonal Cumulative (in)',
+          data: seasonalCum,
+          yAxisID: 'yCum',
+          borderColor: 'rgba(56,189,248,1)',
+          backgroundColor: 'rgba(56,189,248,0.18)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.2,
           fill: false
         }
       ]

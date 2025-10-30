@@ -64,10 +64,16 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECO
     $cachedRaw = @file_get_contents($cacheFile);
     $cached = $cachedRaw ? json_decode($cachedRaw, true) : null;
 
+    $firstDaily = $cached['daily'][0] ?? null;
+    $hasDailyFields = $firstDaily
+        && array_key_exists('contest_cum', $firstDaily)
+        && array_key_exists('seasonal_cum', $firstDaily);
+
     $hasNewFields = $cached
         && isset($cached['contest_total_snow_in'])
         && isset($cached['seasonal_total_in'])
-        && (($cached['contest_start'] ?? null) === $CONTEST_START_DATE);
+        && (($cached['contest_start'] ?? null) === $CONTEST_START_DATE)
+        && $hasDailyFields;
 
     if ($hasNewFields) {
         echo $cachedRaw;
@@ -130,9 +136,8 @@ foreach ($stnData['data'] as $row) {
 }
 
 $daily = [];
-$cumTotal = 0.0;
-$contestTotal = 0.0;
-$seasonalTotal = 0.0;
+$contestCum = 0.0;
+$seasonalCum = 0.0;
 
 $cursor = new DateTimeImmutable($SEASONAL_START_DATE);
 $seasonEndDt = new DateTimeImmutable($SEASONAL_END_DATE);
@@ -150,29 +155,24 @@ for ($dt = $cursor; $dt <= $seasonEndDt; $dt = $dt->modify('+1 day')) {
     }
 
     if ($snowIn !== null) {
-        $seasonalTotal += $snowIn;
-    }
-
-    if ($snowIn !== null && $date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE) {
-        $contestTotal += $snowIn;
-        $cumTotal += $snowIn;
-    }
-
-    if ($date < $CONTEST_START_DATE || $date > $CONTEST_END_DATE) {
-        $daily[] = [
-            'date' => $date,
-            'snow' => $snowIn,
-            'cum'  => $cumTotal
-        ];
-        continue;
+        $seasonalCum += $snowIn;
+        if ($date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE) {
+            $contestCum += $snowIn;
+        }
     }
 
     $daily[] = [
-        'date' => $date,
-        'snow' => $snowIn,
-        'cum'  => $cumTotal
+        'date'         => $date,
+        'snow'         => $snowIn,
+        'contest_cum'  => ($date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE)
+            ? $contestCum
+            : null,
+        'seasonal_cum' => $seasonalCum
     ];
 }
+
+$contestTotal = $contestCum;
+$seasonalTotal = $seasonalCum;
 
 // -------- Final payload structure --------
 $payload = [
