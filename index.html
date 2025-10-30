@@ -481,9 +481,10 @@ async function fetchGuessSheet(config) {
     if (cell == null) return '';
     return String(cell).trim().toLowerCase();
   });
-  const nameIdx = header.findIndex(h => h.includes('name') || h.includes('guesser'));
-  const guessIdx = header.findIndex(h => h === 'guess' || h.includes('guess'));
-  const deptIdx = header.findIndex(h => h.includes('dist') || h.includes('dept'));
+  const normalized = header.map(h => h.replace(/[^a-z0-9]/g, ''));
+  const nameIdx = normalized.findIndex(h => h.includes('name') || h.includes('guesser'));
+  const guessIdx = normalized.findIndex(h => (h.startsWith('guess') && h !== 'guesser') || h === 'snowguess' || h === 'totalguess');
+  const deptIdx = normalized.findIndex(h => h.includes('dist') || h.includes('dept'));
 
   return rows.slice(1).map(row => {
     const rawName = nameIdx >= 0 ? row[nameIdx] : row[0];
