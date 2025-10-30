@@ -157,26 +157,10 @@
     gap: 1rem;
   }
 
-  .results-section-title {
-    font-size: .85rem;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
-
-  .results-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: .65rem;
-  }
-
   .result-line {
     display: flex;
     flex-direction: column;
-    gap: .2rem;
+    gap: .35rem;
     background: rgba(15,23,42,0.45);
     border: 1px solid rgba(71,85,105,0.6);
     border-radius: .75rem;
@@ -186,6 +170,13 @@
   .result-line strong {
     font-weight: 600;
     color: var(--text-main);
+  }
+
+  .result-subhead {
+    font-size: .75rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
   }
 
   .result-detail {
@@ -327,23 +318,23 @@
     <div class="chart-card-header">
       <span>Contest Leaders</span>
       <span class="chart-sub">
-        Completed seasons list their champions using closest-without-going-over scoring.
-        The active season shows who currently leads under the same rule set.
+        Official contest uses closest-without-going-over scoring for Dec&nbsp;2 → Mar&nbsp;31 snowfall.
+        Seasonal totals (Jul&nbsp;1 → Jun&nbsp;30) earn unofficial bragging rights only.
       </span>
     </div>
 
-    <div>
-      <div class="results-section-title">Completed Seasons</div>
-      <ul id="completed-results-list" class="results-list">
-        <li class="result-line">Loading completed seasons…</li>
-      </ul>
+    <div class="result-line" id="contest-results-season">
+      Loading season standings…
     </div>
 
-    <div>
-      <div class="results-section-title">Current Season Leader</div>
-      <div id="current-season-result" class="result-line">
-        Loading current season leader…
-      </div>
+    <div class="result-line">
+      <div class="result-subhead">Official Contest · Dec&nbsp;2 → Mar&nbsp;31</div>
+      <div id="official-result-body" class="result-detail">Loading official standings…</div>
+    </div>
+
+    <div class="result-line">
+      <div class="result-subhead">Seasonal Total · Jul&nbsp;1 → Jun&nbsp;30 (Unofficial)</div>
+      <div id="seasonal-result-body" class="result-detail">Loading seasonal standings…</div>
     </div>
   </section>
 
@@ -418,6 +409,10 @@ const guessSheetConfigs = [
   { startYear: 2025, file: '25-26Guesses.xlsx' }
 ];
 
+const guessCache = new Map();
+const seasonDataCache = new Map();
+let currentResultsToken = 0;
+
 function formatInches(value) {
   if (value == null || Number.isNaN(value)) {
     return '--';
@@ -455,6 +450,74 @@ function describeMargin(margin, wentOver) {
     return 'exact match';
   }
   return `within ${formatInches(margin)}"`;
+}
+
+function formatDateLabel(dateInput) {
+  if (!dateInput) return '';
+  const date = typeof dateInput === 'string'
+    ? new Date(dateInput + 'T00:00:00')
+    : dateInput instanceof Date
+      ? dateInput
+      : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function parseISODate(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr + 'T00:00:00');
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatISODate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function computeWindowTotal(daily, startIso, endIso) {
+  if (!Array.isArray(daily) || !startIso || !endIso) {
+    return null;
+  }
+  let total = 0;
+  let included = false;
+  for (const row of daily) {
+    const date = row?.date;
+    if (!date || date < startIso || date > endIso) {
+      continue;
+    }
+    included = true;
+    const val = row.snow;
+    if (typeof val === 'number' && !Number.isNaN(val)) {
+      total += val;
+    }
+  }
+  if (!included) {
+    return null;
+  }
+  return total;
+}
+
+function getStage(now, start, end) {
+  if (!(now instanceof Date) || Number.isNaN(now.getTime()) || !(start instanceof Date) || Number.isNaN(start.getTime()) || !(end instanceof Date) || Number.isNaN(end.getTime())) {
+    return 'unknown';
+  }
+  if (now < start) return 'pre';
+  if (now > end) return 'done';
+  return 'active';
+}
+
+function formatGuesserDisplay(entry) {
+  if (!entry) return '';
+  const name = escapeHtml(entry.name || '');
+  const deptPart = entry.dept ? ` – ${escapeHtml(entry.dept)}` : '';
+  return `${name}${deptPart} (${formatInches(entry.guess)}")`;
 }
 
 async function fetchGuessSheet(config) {
@@ -562,207 +625,182 @@ function pickPriceIsRightResult(guesses, target) {
   return { winners: [], margin: null, allOver: false };
 }
 
-async function loadContestResults(currentStartYear) {
-  const completedListEl = document.getElementById('completed-results-list');
-  const currentSeasonEl = document.getElementById('current-season-result');
+async function updateContestResults(startYearInput, seasonDataOverride) {
+  const seasonTitleEl = document.getElementById('contest-results-season');
+  const officialEl = document.getElementById('official-result-body');
+  const seasonalEl = document.getElementById('seasonal-result-body');
 
-  if (!completedListEl || !currentSeasonEl) return;
-
-  if (typeof XLSX === 'undefined') {
-    completedListEl.innerHTML = '<li class="result-line">Unable to load winners (XLSX library missing).</li>';
-    currentSeasonEl.textContent = 'Unable to load without XLSX support.';
+  if (!seasonTitleEl || !officialEl || !seasonalEl) {
     return;
   }
 
-  const today = new Date();
-  const entries = [];
-  const relevantConfigs = guessSheetConfigs.filter(cfg => cfg.startYear <= currentStartYear);
+  const token = ++currentResultsToken;
+  const parsedYear = parseInt(startYearInput, 10);
+  const fallbackLabel = Number.isFinite(parsedYear) ? `${parsedYear}-${parsedYear + 1}` : null;
 
-  if (!relevantConfigs.length) {
-    completedListEl.innerHTML = '<li class="result-line">No seasons available yet.</li>';
-    currentSeasonEl.textContent = 'No active contest season.';
+  seasonTitleEl.innerHTML = fallbackLabel
+    ? `<strong>${escapeHtml('Season ' + fallbackLabel)}</strong>`
+    : 'Select a season to view standings.';
+  officialEl.textContent = 'Loading official standings…';
+  seasonalEl.textContent = 'Loading seasonal standings…';
+
+  if (!Number.isFinite(parsedYear)) {
+    officialEl.textContent = 'Select a season above to view contest results.';
+    seasonalEl.textContent = 'Select a season above to view contest results.';
     return;
   }
 
-  for (const config of relevantConfigs) {
+  const config = guessSheetConfigs.find(cfg => cfg.startYear === parsedYear);
+  if (!config) {
+    officialEl.innerHTML = 'No guess sheet was found for this season.';
+    seasonalEl.innerHTML = 'No guess sheet was found for this season.';
+    return;
+  }
+
+  let guesses = guessCache.get(parsedYear);
+  if (!guesses) {
     try {
-      const [guesses, seasonData] = await Promise.all([
-        fetchGuessSheet(config),
-        fetchSeasonTotals(config.startYear)
-      ]);
-      const contestEnd = seasonData.contest_end ? new Date(seasonData.contest_end) : null;
-      const completed = contestEnd ? today > contestEnd : false;
-      const seasonLabel = seasonData.season_label || `${config.startYear}-${config.startYear + 1}`;
-      const contestTotalRaw = (seasonData.contest_total_snow_in ?? seasonData.total_snow_in);
-      const contestTotalParsed = contestTotalRaw != null ? parseFloat(contestTotalRaw) : null;
-      const contestTotal = Number.isFinite(contestTotalParsed) ? contestTotalParsed : null;
-      const result = contestTotal != null
-        ? pickPriceIsRightResult(guesses, contestTotal)
-        : { winners: [], margin: null, allOver: false };
-
-      entries.push({
-        startYear: config.startYear,
-        seasonLabel,
-        contestTotal,
-        guesses,
-        completed,
-        contestEnd,
-        result
-      });
+      guesses = await fetchGuessSheet(config);
+      guessCache.set(parsedYear, guesses);
     } catch (err) {
-      console.error('Failed loading contest results for', config.startYear, err);
+      console.error('Failed loading guesses for season', parsedYear, err);
+      if (token !== currentResultsToken) return;
+      officialEl.innerHTML = 'Unable to load guesses for this season.';
+      seasonalEl.innerHTML = 'Unable to load guesses for this season.';
+      return;
     }
   }
+  if (token !== currentResultsToken) return;
 
-  const completedSeasons = entries
-    .filter(entry => entry.completed)
-    .sort((a, b) => b.startYear - a.startYear);
-
-  if (!completedSeasons.length) {
-    completedListEl.innerHTML = '<li class="result-line">No completed seasons available.</li>';
-  } else {
-    completedListEl.innerHTML = '';
-    completedSeasons.forEach(entry => {
-      const li = document.createElement('li');
-      li.className = 'result-line';
-      const seasonLabelEsc = escapeHtml(entry.seasonLabel);
-      const { winners, margin, allOver } = entry.result || { winners: [], margin: null, allOver: false };
-
-      if (winners.length && !allOver) {
-        const winnerNames = winners
-          .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-          .join(', ');
-        const marginLabel = describeMargin(margin, false);
-        li.innerHTML = `
-          <strong>${seasonLabelEsc}</strong>
-          <div class="result-detail">
-            Winner${winners.length > 1 ? 's' : ''}: <span class="result-highlight">${winnerNames}</span>
-            · Final: ${formatInches(entry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
-          </div>
-        `;
-      } else if (winners.length && allOver) {
-        const closestNames = winners
-          .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-          .join(', ');
-        const marginLabel = describeMargin(margin, true);
-        li.innerHTML = `
-          <strong>${seasonLabelEsc}</strong>
-          <div class="result-detail">
-            No qualifying winner (all guesses over). Closest over guess: <span class="result-highlight">${closestNames}</span>
-            · Final: ${formatInches(entry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
-          </div>
-        `;
-      } else {
-        li.innerHTML = `
-          <strong>${seasonLabelEsc}</strong>
-          <div class="result-detail">Contest completed but no valid guesses recorded.</div>
-        `;
-      }
-
-      completedListEl.appendChild(li);
-    });
-  }
-
-  const currentEntry = entries.find(entry => entry.startYear === currentStartYear);
-  if (!currentEntry) {
-    currentSeasonEl.textContent = 'Unable to load current season data at this time.';
+  if (!guesses.length) {
+    const msg = 'No guesses submitted yet.';
+    officialEl.innerHTML = msg;
+    seasonalEl.innerHTML = msg;
     return;
   }
-  if (currentEntry.completed) {
-    const { winners, margin, allOver } = currentEntry.result || { winners: [], margin: null, allOver: false };
-    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
-    if (winners.length && !allOver) {
-      const winnerNames = winners
-        .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-        .join(', ');
-      const marginLabel = describeMargin(margin, false);
-      currentSeasonEl.innerHTML = `
-        <strong>${seasonLabelEsc}</strong>
-        <div class="result-detail">
-          Contest completed — Winner${winners.length > 1 ? 's' : ''}:
-          <span class="result-highlight">${winnerNames}</span>
-          · Final: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
-        </div>
-      `;
-    } else if (winners.length && allOver) {
-      const closestNames = winners
-        .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-        .join(', ');
-      const marginLabel = describeMargin(margin, true);
-      currentSeasonEl.innerHTML = `
-        <strong>${seasonLabelEsc}</strong>
-        <div class="result-detail">
-          Contest completed — No qualifying winner (all guesses over).
-          Closest over guess: <span class="result-highlight">${closestNames}</span>
-          · Final: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
-        </div>
-      `;
+
+  if (seasonDataOverride) {
+    seasonDataCache.set(parsedYear, seasonDataOverride);
+  }
+
+  let seasonData = seasonDataOverride || seasonDataCache.get(parsedYear);
+  if (!seasonData) {
+    try {
+      seasonData = await fetchSeasonTotals(parsedYear);
+      seasonDataCache.set(parsedYear, seasonData);
+    } catch (err) {
+      console.error('Failed loading snowfall data for season', parsedYear, err);
+      if (token !== currentResultsToken) return;
+      officialEl.innerHTML = 'Unable to load snowfall totals right now.';
+      seasonalEl.innerHTML = 'Unable to load snowfall totals right now.';
+      return;
+    }
+  }
+  if (token !== currentResultsToken) return;
+
+  const seasonLabel = seasonData?.season_label || fallbackLabel || `Season ${parsedYear}-${parsedYear + 1}`;
+  seasonTitleEl.innerHTML = `<strong>${escapeHtml(seasonLabel)}</strong>`;
+
+  const contestStartStr = seasonData?.contest_start || seasonData?.start_date;
+  const contestEndStr = seasonData?.contest_end || seasonData?.end_date;
+  const seasonalStartStr = seasonData?.seasonal_start || contestStartStr;
+  const seasonalEndStr = seasonData?.seasonal_end || contestEndStr;
+  const daily = Array.isArray(seasonData?.daily) ? seasonData.daily : [];
+  const today = new Date();
+
+  const contestStart = parseISODate(contestStartStr);
+  const contestEnd = parseISODate(contestEndStr);
+  const officialStart = contestStart ? new Date(contestStart.getTime()) : null;
+  if (officialStart) {
+    officialStart.setDate(officialStart.getDate() + 1);
+  }
+  const officialStartStr = officialStart ? formatISODate(officialStart) : contestStartStr;
+  const contestStage = (officialStart || contestStart) && (contestEnd || officialStart || contestStart)
+    ? getStage(today, officialStart || contestStart, contestEnd || officialStart || contestStart)
+    : 'unknown';
+
+  const officialTotal = computeWindowTotal(
+    daily,
+    officialStartStr || contestStartStr,
+    contestEndStr || officialStartStr
+  );
+
+  const seasonalStart = parseISODate(seasonalStartStr);
+  const seasonalEnd = parseISODate(seasonalEndStr);
+  const seasonalStage = (seasonalStart && seasonalEnd)
+    ? getStage(today, seasonalStart, seasonalEnd)
+    : 'unknown';
+  const seasonalTotal = computeWindowTotal(
+    daily,
+    seasonalStartStr,
+    seasonalEndStr || seasonalStartStr
+  );
+
+  let officialMessage = '';
+  if (contestStage === 'pre') {
+    const startLabel = formatDateLabel(officialStart || contestStart);
+    officialMessage = `Contest opens on ${startLabel || 'Dec 2'}. We'll post leaders once snowfall is recorded.`;
+  } else if (contestStage === 'unknown') {
+    officialMessage = 'Contest window dates are unavailable for this season.';
+  } else if (officialTotal == null) {
+    officialMessage = 'Snowfall data is unavailable for this season.';
+  } else {
+    const officialResult = pickPriceIsRightResult(guesses, officialTotal);
+    if (!officialResult.winners.length && !officialResult.allOver) {
+      officialMessage = 'No leader could be determined.';
+    } else if (officialResult.allOver) {
+      const names = officialResult.winners.map(formatGuesserDisplay).join(', ');
+      const marginLabel = describeMargin(officialResult.margin, true);
+      const totalLabel = contestStage === 'done' ? 'Final contest total' : 'Contest total so far';
+      const contextText = contestStage === 'done'
+        ? 'Contest completed — no qualifying winner (all guesses exceeded the final total).'
+        : 'No qualifying leader yet — every guess is still above the current total.';
+      officialMessage = `${contextText} Closest over guess: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
     } else {
-      currentSeasonEl.innerHTML = `
-        <strong>${seasonLabelEsc}</strong>
-        <div class="result-detail">Contest completed but no valid guesses recorded.</div>
-      `;
+      const names = officialResult.winners.map(formatGuesserDisplay).join(', ');
+      const marginLabel = describeMargin(officialResult.margin, false);
+      const label = contestStage === 'done' ? 'Official winner' : 'Current leader';
+      const totalLabel = contestStage === 'done' ? 'Final contest total' : 'Contest total so far';
+      officialMessage = `${label}${officialResult.winners.length > 1 ? 's' : ''}: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
     }
-    return;
   }
-
-  if (!currentEntry.guesses.length) {
-    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
-    currentSeasonEl.innerHTML = `
-      <strong>${seasonLabelEsc}</strong>
-      <div class="result-detail">No guesses submitted yet.</div>
-    `;
-    return;
+  if (!officialMessage) {
+    officialMessage = 'No information available for this season.';
   }
+  officialEl.innerHTML = officialMessage;
 
-  if (currentEntry.contestTotal == null) {
-    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
-    currentSeasonEl.innerHTML = `
-      <strong>${seasonLabelEsc}</strong>
-      <div class="result-detail">Awaiting snowfall data.</div>
-    `;
-    return;
-  }
-
-  const currentResult = pickPriceIsRightResult(currentEntry.guesses, currentEntry.contestTotal);
-  currentEntry.result = currentResult;
-  const leaders = currentResult.winners;
-  if (!leaders.length) {
-    const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
-    currentSeasonEl.innerHTML = `
-      <strong>${seasonLabelEsc}</strong>
-      <div class="result-detail">No leader could be determined.</div>
-    `;
-    return;
-  }
-
-  const seasonLabelEsc = escapeHtml(currentEntry.seasonLabel);
-  if (currentResult.allOver) {
-    const closestNames = leaders
-      .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-      .join(', ');
-    const marginLabel = describeMargin(currentResult.margin, true);
-    currentSeasonEl.innerHTML = `
-      <strong>${seasonLabelEsc}</strong>
-      <div class="result-detail">
-        No leader yet — all guesses are still above the current total.
-        Closest over guess: <span class="result-highlight">${closestNames}</span>
-        · Contest total so far: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
-      </div>
-    `;
+  let seasonalMessage = '';
+  if (seasonalStage === 'pre') {
+    const startLabel = formatDateLabel(seasonalStart);
+    seasonalMessage = `Snow year begins on ${startLabel || 'Jul 1'}. We'll post standings once the season starts.`;
+  } else if (seasonalStage === 'unknown') {
+    seasonalMessage = 'Seasonal window dates are unavailable for this season.';
+  } else if (seasonalTotal == null) {
+    seasonalMessage = 'Seasonal snowfall data is unavailable for this season.';
   } else {
-    const leaderNames = leaders
-      .map(w => `${escapeHtml(w.name)} (${formatInches(w.guess)}")`)
-      .join(', ');
-    const marginLabel = describeMargin(currentResult.margin, false);
-    currentSeasonEl.innerHTML = `
-      <strong>${seasonLabelEsc}</strong>
-      <div class="result-detail">
-        Current leader${leaders.length > 1 ? 's' : ''}: <span class="result-highlight">${leaderNames}</span>
-        · Contest total so far: ${formatInches(currentEntry.contestTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}
-      </div>
-    `;
+    const seasonalResult = pickPriceIsRightResult(guesses, seasonalTotal);
+    if (!seasonalResult.winners.length && !seasonalResult.allOver) {
+      seasonalMessage = 'No leader could be determined.';
+    } else if (seasonalResult.allOver) {
+      const names = seasonalResult.winners.map(formatGuesserDisplay).join(', ');
+      const marginLabel = describeMargin(seasonalResult.margin, true);
+      const totalLabel = seasonalStage === 'done' ? 'Final seasonal total' : 'Seasonal total so far';
+      const contextText = seasonalStage === 'done'
+        ? 'Snow year completed — no qualifying unofficial winner (all guesses exceeded the final total).'
+        : 'No unofficial leader yet — every guess is still above the current total.';
+      seasonalMessage = `${contextText} Closest over guess: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
+    } else {
+      const names = seasonalResult.winners.map(formatGuesserDisplay).join(', ');
+      const marginLabel = describeMargin(seasonalResult.margin, false);
+      const label = seasonalStage === 'done' ? 'Unofficial winner' : 'Unofficial leader';
+      const totalLabel = seasonalStage === 'done' ? 'Final seasonal total' : 'Seasonal total so far';
+      seasonalMessage = `${label}${seasonalResult.winners.length > 1 ? 's' : ''}: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
+    }
   }
+  if (!seasonalMessage) {
+    seasonalMessage = 'No information available for this season.';
+  }
+  seasonalEl.innerHTML = seasonalMessage;
 }
 
 // Build dropdown with recent contest seasons
@@ -796,6 +834,7 @@ async function loadSeason(startYear) {
   }
   currentController = new AbortController();
   const { signal } = currentController;
+  const parsedStartYear = parseInt(startYear, 10);
 
   setLoading(true);
 
@@ -821,6 +860,10 @@ async function loadSeason(startYear) {
       console.error(json.error);
 
       drawChart([], [], [], [], null);
+      if (Number.isFinite(parsedStartYear)) {
+        seasonDataCache.delete(parsedStartYear);
+        updateContestResults(parsedStartYear, null);
+      }
       setLoading(false);
       return;
     }
@@ -885,6 +928,12 @@ async function loadSeason(startYear) {
       start: contestStart,
       end: contestEnd
     });
+    if (Number.isFinite(parsedStartYear)) {
+      seasonDataCache.set(parsedStartYear, json);
+      updateContestResults(parsedStartYear, json);
+    } else {
+      updateContestResults(startYear, json);
+    }
     setLoading(false);
 
   } catch (err) {
@@ -902,6 +951,12 @@ async function loadSeason(startYear) {
     document.getElementById('largest-storm-value').textContent = '--';
     document.getElementById('largest-storm-note').textContent = 'Unable to load';
     drawChart([], [], [], [], null);
+    if (Number.isFinite(parsedStartYear)) {
+      seasonDataCache.delete(parsedStartYear);
+      updateContestResults(parsedStartYear, null);
+    } else {
+      updateContestResults(startYear, null);
+    }
     setLoading(false);
   }
 }
@@ -1116,17 +1171,17 @@ populateSeasonDropdown();
 const seasonSelectEl = document.getElementById('seasonSelect');
 const initialYearOption = seasonSelectEl.options[0]?.value;
 if (initialYearOption) {
+  updateContestResults(initialYearOption);
   loadSeason(initialYearOption);
-  const parsed = parseInt(initialYearOption, 10);
-  const contestStartYear = Number.isNaN(parsed) ? new Date().getFullYear() : parsed;
-  loadContestResults(contestStartYear);
 } else {
-  loadContestResults(new Date().getFullYear());
+  updateContestResults(NaN);
 }
 
 // when the user changes the dropdown, load that year
 seasonSelectEl.addEventListener('change', (e) => {
-  loadSeason(e.target.value);
+  const selectedYear = e.target.value;
+  updateContestResults(selectedYear);
+  loadSeason(selectedYear);
 });
 </script>
 </body>
