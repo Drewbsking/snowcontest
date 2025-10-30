@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>White Lake Snowfall Contest · Official Rules</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text-main: #e2e8f0;
+      --text-dim: #94a3b8;
+      --accent: #38bdf8;
+      --radius: 1rem;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 2rem 1.5rem 3rem;
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    nav {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      font-size: .9rem;
+    }
+
+    nav a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 600;
+    }
+
+    header p {
+      margin: .35rem 0 0;
+      color: var(--text-dim);
+      max-width: 60ch;
+    }
+
+    .card {
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.45);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    section p {
+      margin: 0;
+      color: var(--text-dim);
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: var(--text-dim);
+    }
+
+    li + li {
+      margin-top: .6rem;
+    }
+
+    .footnote {
+      font-size: .85rem;
+      color: var(--text-dim);
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="index.html">Dashboard</a>
+      <a href="winners.html">Past Winners</a>
+    </nav>
+
+    <header>
+      <h1>Official Contest Rules</h1>
+      <p>
+        The Road Commission for Oakland County’s “Guess How Much Snow We’ll Get” challenge
+        rewards the closest snowfall prediction for the White Lake Township station’s winter contest window.
+      </p>
+    </header>
+
+    <section class="card">
+      <h2>How to Enter</h2>
+      <ul>
+        <li>Submit a single guess (to the nearest tenth of an inch) for total snowfall between December&nbsp;2 and March&nbsp;31.</li>
+        <li>Include your full name and district/department.</li>
+        <li>Email or interoffice mail your entry to Leanne DeRousse (Managing Directors’ Office) before 4:00&nbsp;PM on the published deadline, typically the Monday preceding the contest season.</li>
+        <li>Entries are open to all active RCOC employees; one submission per person.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Scoring &amp; Winners</h2>
+      <ul>
+        <li><strong>Official Contest:</strong> The winning guess is the closest without going over the verified contest total (Dec&nbsp;2 → Mar&nbsp;31). If every entry is above the total, the closest overall is recognized but no official prize is awarded.</li>
+        <li><strong>Seasonal Spotlight:</strong> We also recognize the closest guess (same scoring rule) for the full snow year (Jul&nbsp;1 → Jun&nbsp;30) as an unofficial bragging-rights leader.</li>
+        <li>Ties are allowed—multiple entrants receive recognition when they are equally close under the scoring rules.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Verification &amp; Prize</h2>
+      <ul>
+        <li>Official totals are taken from the NOAA ACIS White Lake 4E station (SID&nbsp;208941).</li>
+        <li>Trace amounts (“T”) count as 0.0 in the totals.</li>
+        <li>Official winners earn a half-day off prize (expires August&nbsp;31 of the following year).</li>
+      </ul>
+      <p class="footnote">
+        Questions about the contest? Contact the Managing Directors’ Office for clarification.
+      </p>
+    </section>
+  </div>
+</body>
+</html>

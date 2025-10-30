@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>White Lake Snowfall Contest · Past Winners</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text-main: #e2e8f0;
+      --text-dim: #94a3b8;
+      --accent: #38bdf8;
+      --radius: 1rem;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 2rem 1.5rem 3rem;
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    nav {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      font-size: .9rem;
+    }
+
+    nav a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 600;
+    }
+
+    header p {
+      margin: .35rem 0 0;
+      color: var(--text-dim);
+      max-width: 65ch;
+    }
+
+    .card {
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .season-card {
+      background: rgba(15,23,42,0.45);
+      border: 1px solid rgba(71,85,105,0.6);
+      border-radius: .9rem;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .season-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: .75rem;
+      flex-wrap: wrap;
+    }
+
+    .season-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .season-status {
+      font-size: .85rem;
+      color: var(--text-dim);
+    }
+
+    .section-title {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+    }
+
+    .result-line {
+      color: var(--text-main);
+    }
+
+    .result-line .highlight {
+      color: #f87171;
+      font-weight: 500;
+    }
+
+    .result-line .detail {
+      color: var(--text-dim);
+    }
+
+    .loading {
+      font-size: .95rem;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="index.html">Dashboard</a>
+      <a href="rules.html">Contest Rules</a>
+    </nav>
+
+    <header>
+      <h1>Past Contest Winners</h1>
+      <p>
+        Official contest winners are determined by the closest prediction without going over the Dec&nbsp;2 → Mar&nbsp;31 snowfall total.
+        Unofficial seasonal leaders apply the same scoring across the full Jul&nbsp;1 → Jun&nbsp;30 snow year for bragging rights.
+      </p>
+    </header>
+
+    <div class="card" id="results-card">
+      <div class="loading" id="loading-text">Loading completed seasons…</div>
+      <div id="seasons-container" style="display:flex;flex-direction:column;gap:1.25rem;"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    const guessSheetConfigs = [
+      { startYear: 2019, file: '19-20Guesses.xlsx' },
+      { startYear: 2020, file: '20-21Guesses.xlsx' },
+      { startYear: 2021, file: '21-22Guesses.xlsx' },
+      { startYear: 2022, file: '22-23Guesses.xlsx' },
+      { startYear: 2023, file: '23-24Guesses.xlsx' },
+      { startYear: 2024, file: '24-25Guesses.xlsx' },
+      { startYear: 2025, file: '25-26Guesses.xlsx' }
+    ];
+
+    function formatInches(value) {
+      if (value == null || Number.isNaN(value)) return '--';
+      const rounded = Math.round(value * 10) / 10;
+      let str = rounded.toFixed(1);
+      if (str.endsWith('.0')) str = str.slice(0, -2);
+      return str;
+    }
+
+    function escapeHtml(value) {
+      if (value == null) return '';
+      return String(value).replace(/[&<>"']/g, ch => {
+        switch (ch) {
+          case '&': return '&amp;';
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '"': return '&quot;';
+          case '\'': return '&#39;';
+          default: return ch;
+        }
+      });
+    }
+
+    function describeMargin(margin, wentOver) {
+      if (margin == null || Number.isNaN(margin)) return '';
+      if (wentOver) return `over by ${formatInches(margin)}"`;
+      if (margin < 1e-6) return 'exact match';
+      return `within ${formatInches(margin)}"`;
+    }
+
+    function parseISODate(dateStr) {
+      if (!dateStr) return null;
+      const date = new Date(dateStr + 'T00:00:00');
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function formatDate(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatGuesser(entry) {
+      if (!entry) return '';
+      const deptPart = entry.dept ? ` – ${escapeHtml(entry.dept)}` : '';
+      return `${escapeHtml(entry.name)}${deptPart} (${formatInches(entry.guess)}")`;
+    }
+
+    function computeWindowTotal(daily, startIso, endIso) {
+      if (!Array.isArray(daily) || !startIso || !endIso) return null;
+      let total = 0;
+      let counted = false;
+      for (const row of daily) {
+        const date = row?.date;
+        if (!date || date < startIso || date > endIso) continue;
+        counted = true;
+        const val = row.snow;
+        if (typeof val === 'number' && !Number.isNaN(val)) total += val;
+      }
+      return counted ? total : null;
+    }
+
+    function pickPriceIsRightResult(guesses, target) {
+      if (!Array.isArray(guesses) || !Number.isFinite(target)) {
+        return { winners: [], margin: null, allOver: false };
+      }
+      const epsilon = 1e-6;
+      const eligible = [];
+      const over = [];
+      guesses.forEach(entry => {
+        if (!entry || !Number.isFinite(entry.guess)) return;
+        const diff = target - entry.guess;
+        if (diff >= -epsilon) {
+          eligible.push({ entry, margin: Math.max(diff, 0) });
+        } else {
+          over.push({ entry, margin: Math.abs(diff) });
+        }
+      });
+      if (eligible.length) {
+        const min = Math.min(...eligible.map(x => x.margin));
+        const winners = eligible
+          .filter(x => Math.abs(x.margin - min) < epsilon)
+          .map(x => ({ ...x.entry, margin: x.margin, wentOver: false }));
+        return { winners, margin: min, allOver: false };
+      }
+      if (over.length) {
+        const min = Math.min(...over.map(x => x.margin));
+        const winners = over
+          .filter(x => Math.abs(x.margin - min) < epsilon)
+          .map(x => ({ ...x.entry, margin: x.margin, wentOver: true }));
+        return { winners, margin: min, allOver: true };
+      }
+      return { winners: [], margin: null, allOver: false };
+    }
+
+    async function fetchGuessSheet(config) {
+      const res = await fetch(config.file);
+      if (!res.ok) throw new Error(`Failed to load ${config.file}`);
+      const buffer = await res.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheet = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], {
+        header: 1,
+        raw: true,
+        defval: null
+      });
+      if (!rows.length) return [];
+      const header = rows[0].map(cell => cell == null ? '' : String(cell).trim().toLowerCase());
+      const normalized = header.map(h => h.replace(/[^a-z0-9]/g, ''));
+      const nameIdx = normalized.findIndex(h => h.includes('name') || h.includes('guesser'));
+      const guessIdx = normalized.findIndex(h => (h.startsWith('guess') && h !== 'guesser') || h === 'snowguess' || h === 'totalguess');
+      const deptIdx = normalized.findIndex(h => h.includes('dist') || h.includes('dept'));
+      return rows.slice(1).map(row => {
+        const rawName = nameIdx >= 0 ? row[nameIdx] : row[0];
+        const rawGuess = guessIdx >= 0 ? row[guessIdx] : row[2];
+        const rawDept = deptIdx >= 0 ? row[deptIdx] : null;
+        const name = rawName == null ? '' : String(rawName).trim();
+        const guessVal = typeof rawGuess === 'number'
+          ? rawGuess
+          : parseFloat(String(rawGuess ?? '').replace(/[^0-9.\-]/g, ''));
+        return {
+          name,
+          dept: rawDept == null ? '' : String(rawDept).trim(),
+          guess: Number.isFinite(guessVal) ? guessVal : null
+        };
+      }).filter(entry => entry.name && entry.guess != null);
+    }
+
+    async function fetchSeasonData(startYear) {
+      const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(startYear));
+      if (!res.ok) throw new Error('Failed to load snowfall data for ' + startYear);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      return json;
+    }
+
+    function renderSeasonCard(container, info) {
+      const card = document.createElement('div');
+      card.className = 'season-card';
+
+      const header = document.createElement('div');
+      header.className = 'season-header';
+      const title = document.createElement('div');
+      title.className = 'season-title';
+      title.textContent = info.seasonLabel;
+
+      const status = document.createElement('div');
+      status.className = 'season-status';
+      status.textContent = info.statusText;
+
+      header.appendChild(title);
+      header.appendChild(status);
+      card.appendChild(header);
+
+      const officialSection = document.createElement('div');
+      officialSection.innerHTML = `
+        <div class="section-title">Official Contest · Dec&nbsp;2 → Mar&nbsp;31</div>
+        <div class="result-line">${info.officialText}</div>
+      `;
+      card.appendChild(officialSection);
+
+      const seasonalSection = document.createElement('div');
+      seasonalSection.innerHTML = `
+        <div class="section-title">Seasonal Total · Jul&nbsp;1 → Jun&nbsp;30</div>
+        <div class="result-line">${info.seasonalText}</div>
+      `;
+      card.appendChild(seasonalSection);
+
+      container.appendChild(card);
+    }
+
+    async function loadWinners() {
+      const loadingText = document.getElementById('loading-text');
+      const container = document.getElementById('seasons-container');
+      if (!loadingText || !container) return;
+
+      try {
+        const results = [];
+        for (const config of guessSheetConfigs) {
+          const [guesses, seasonData] = await Promise.all([
+            fetchGuessSheet(config),
+            fetchSeasonData(config.startYear)
+          ]);
+
+          const contestStart = parseISODate(seasonData.contest_start || seasonData.start_date);
+          const contestEnd = parseISODate(seasonData.contest_end || seasonData.end_date);
+          const officialStart = contestStart ? new Date(contestStart.getTime()) : null;
+          if (officialStart) officialStart.setDate(officialStart.getDate() + 1);
+          const officialStartIso = officialStart
+            ? officialStart.toISOString().slice(0, 10)
+            : (seasonData.contest_start || seasonData.start_date);
+
+          const seasonalStartIso = seasonData.seasonal_start || seasonData.contest_start || seasonData.start_date;
+          const seasonalEndIso = seasonData.seasonal_end || seasonData.contest_end || seasonData.end_date;
+
+          const today = new Date();
+          const contestDone = contestEnd && today > contestEnd;
+          const seasonalEnd = parseISODate(seasonalEndIso);
+          const seasonalDone = seasonalEnd && today > seasonalEnd;
+
+          const officialTotal = computeWindowTotal(
+            seasonData.daily,
+            officialStartIso,
+            seasonData.contest_end || seasonData.end_date
+          );
+
+          const seasonalTotal = computeWindowTotal(
+            seasonData.daily,
+            seasonalStartIso,
+            seasonalEndIso
+          );
+
+          const officialResult = Number.isFinite(officialTotal)
+            ? pickPriceIsRightResult(guesses, officialTotal)
+            : { winners: [], margin: null, allOver: false };
+          const seasonalResult = Number.isFinite(seasonalTotal)
+            ? pickPriceIsRightResult(guesses, seasonalTotal)
+            : { winners: [], margin: null, allOver: false };
+
+          const officialText = (() => {
+            if (!Number.isFinite(officialTotal)) {
+              return '<span class="detail">Totals unavailable for this season.</span>';
+            }
+            const totalLabel = contestDone ? 'Final total' : 'Contest total so far';
+            if (!officialResult.winners.length && !officialResult.allOver) {
+              return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(officialTotal)}"</span>`;
+            }
+            if (officialResult.allOver) {
+              const names = officialResult.winners.map(formatGuesser).join(', ');
+              const margin = describeMargin(officialResult.margin, true);
+              const context = contestDone
+                ? 'Contest completed — no official winner.'
+                : 'All guesses currently exceed the total.';
+              return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${margin ? ` · ${margin}` : ''}`;
+            }
+            const names = officialResult.winners.map(formatGuesser).join(', ');
+            const margin = describeMargin(officialResult.margin, false);
+            const label = contestDone ? 'Official winner' : 'Current leader';
+            return `${label}${officialResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${margin ? ` · ${margin}` : ''}`;
+          })();
+
+          const seasonalText = (() => {
+            if (!Number.isFinite(seasonalTotal)) {
+              return '<span class="detail">Seasonal totals unavailable for this season.</span>';
+            }
+            const totalLabel = seasonalDone ? 'Final seasonal total' : 'Seasonal total so far';
+            if (!seasonalResult.winners.length && !seasonalResult.allOver) {
+              return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(seasonalTotal)}"</span>`;
+            }
+            if (seasonalResult.allOver) {
+              const names = seasonalResult.winners.map(formatGuesser).join(', ');
+              const margin = describeMargin(seasonalResult.margin, true);
+              const context = seasonalDone
+                ? 'Season completed — no unofficial winner.'
+                : 'All guesses currently exceed the total.';
+              return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${margin ? ` · ${margin}` : ''}`;
+            }
+            const names = seasonalResult.winners.map(formatGuesser).join(', ');
+            const margin = describeMargin(seasonalResult.margin, false);
+            const label = seasonalDone ? 'Unofficial winner' : 'Unofficial leader';
+            return `${label}${seasonalResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${margin ? ` · ${margin}` : ''}`;
+          })();
+
+          let statusText = '';
+          if (contestDone && seasonalDone) {
+            statusText = 'Contest and snow year completed (' + formatDate(seasonalEnd) + ').';
+          } else if (!contestDone && seasonalDone) {
+            statusText = 'Seasonal totals finalized; contest still in progress.';
+          } else if (contestDone) {
+            statusText = 'Contest completed (' + formatDate(contestEnd) + '); seasonal totals still accumulating.';
+          } else {
+            statusText = 'Season in progress.';
+          }
+
+          results.push({
+            seasonLabel: seasonData.season_label || `${config.startYear}-${config.startYear + 1}`,
+            statusText,
+            officialText,
+            seasonalText,
+            startYear: config.startYear
+          });
+        }
+
+        // Sort newest to oldest
+        results.sort((a, b) => b.startYear - a.startYear);
+        container.innerHTML = '';
+        results.forEach(info => renderSeasonCard(container, info));
+        loadingText.style.display = 'none';
+      } catch (err) {
+        console.error(err);
+        loadingText.textContent = 'Unable to load past winners right now.';
+      }
+    }
+
+    if (typeof XLSX === 'undefined') {
+      document.getElementById('loading-text').textContent = 'Spreadsheet support failed to load.';
+    } else {
+      loadWinners();
+    }
+  </script>
+</body>
+</html>
