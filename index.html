@@ -151,6 +151,19 @@
     height: 400px;
   }
 
+  .no-snow-message {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: .85rem;
+    color: rgba(148,163,184,0.95); /* slate-400 */
+    pointer-events: none;
+    padding: 0 1.5rem;
+  }
+
   #contest-results-card {
     display: flex;
     flex-direction: column;
@@ -310,6 +323,9 @@
         <div class="spinner"></div>
         <div>Loading snowfall data…</div>
       </div>
+      <div class="no-snow-message" id="no-snow-message">
+        No snowfall has been recorded yet this season.
+      </div>
       <canvas id="snowChart" aria-label="Daily snowfall bar chart and cumulative snowfall line chart" role="img"></canvas>
     </div>
   </section>
@@ -397,6 +413,12 @@ let currentController = null; // to cancel in-flight fetches
 function setLoading(isLoading) {
   const overlay = document.getElementById('loading-overlay');
   overlay.style.display = isLoading ? 'flex' : 'none';
+  if (isLoading) {
+    const noSnowEl = document.getElementById('no-snow-message');
+    if (noSnowEl) {
+      noSnowEl.style.display = 'none';
+    }
+  }
 }
 
 const guessSheetConfigs = [
@@ -813,9 +835,9 @@ function populateSeasonDropdown() {
   const month = now.getMonth() + 1; // 1..12
   const year = now.getFullYear();
 
-  // If we're in Dec, current startYear = this year.
-  // Otherwise (Jan–Nov), current startYear = last year.
-  const currentStartYear = (month >= 12) ? year : (year - 1);
+  // Once we reach Jul 1, consider the upcoming contest season (Dec -> Mar) for this year.
+  // For Jan–Jun, we remain in the season that began the previous Dec.
+  const currentStartYear = (month >= 7) ? year : (year - 1);
 
   // Add ~6 seasons back
   for (let y = currentStartYear; y >= currentStartYear - 5; y--) {
@@ -964,6 +986,7 @@ async function loadSeason(startYear) {
 // Draw or redraw Chart.js chart
 function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
   const ctx = document.getElementById('snowChart').getContext('2d');
+  const noSnowEl = document.getElementById('no-snow-message');
 
   if (chartRef) {
     chartRef.destroy();
@@ -1020,6 +1043,12 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
     barBorderColors.push(baseBorder);
     barBorderWidths.push(0);
   });
+
+  const hasSnow = dailySnow.some(value => typeof value === 'number' && value > 0);
+  if (noSnowEl) {
+    const shouldShow = !hasSnow && Array.isArray(labels) && labels.length > 0;
+    noSnowEl.style.display = shouldShow ? 'flex' : 'none';
+  }
 
   let resolvedZoomPlugin = null;
   if (typeof window !== 'undefined') {
