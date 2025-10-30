@@ -61,19 +61,54 @@ body {
   }
 }
 
-.top-nav-shell {
+.top-bar {
   max-width: var(--max-width);
   margin: 0 auto;
   padding-bottom: 1rem;
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+}
+
+.brand-logo {
+  width: clamp(60px, 12vw, 96px);
+  height: auto;
+  border-radius: .4rem;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+}
+
+.brand-title {
+  font-size: clamp(1.2rem, 1rem + 1.5vw, 2rem);
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.brand-sub {
+  font-size: .8rem;
+  color: var(--text-dim);
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
 .top-nav {
   display: flex;
-  justify-content: flex-end;
   gap: 1rem;
   font-size: .85rem;
+  flex-wrap: wrap;
 }
 
 .top-nav a {
@@ -392,6 +427,12 @@ label[for="seasonSelect"] {
 
   .total-box {
     padding: 0.9rem 1.05rem;
+  }
+
+  .top-bar {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
   }
 }
 
