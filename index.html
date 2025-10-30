@@ -941,7 +941,6 @@ async function loadSeason(startYear) {
     const seasonalCum = [];
     let largestDailyValue = null;
     let largestDailyDate = null;
-    let lastSnowDay = null;
 
     json.daily.forEach(row => {
       labels.push(row.date);
@@ -953,9 +952,6 @@ async function loadSeason(startYear) {
         if (largestDailyValue === null || row.snow > largestDailyValue) {
           largestDailyValue = row.snow;
           largestDailyDate = row.date;
-        }
-        if (row.snow >= 0.1) {
-          lastSnowDay = row.date;
         }
       }
     });
@@ -975,38 +971,85 @@ async function loadSeason(startYear) {
     if (droughtValueEl && droughtNoteEl) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayIso = today.toISOString().slice(0, 10);
+      const lastDataDate = json.daily.length
+        ? parseISODate(json.daily[json.daily.length - 1].date)
+        : null;
+      let limitDate = parseISODate(json.seasonal_end || json.end_date) || lastDataDate || today;
+      if (lastDataDate && lastDataDate < limitDate) {
+        limitDate = lastDataDate;
+      }
+      if (today < limitDate) {
+        limitDate = today;
+      }
 
-      const dailyDates = json.daily.map(row => row.date);
-      const finalDate = dailyDates.length ? dailyDates[dailyDates.length - 1] : null;
+      const threshold = 0.1;
+      let firstSnowDay = null;
+      let lastSnowDay = null;
+      json.daily.forEach(row => {
+        const day = parseISODate(row.date);
+        if (!day || day > limitDate) return;
+        const snow = row.snow;
+        if (typeof snow === 'number' && !Number.isNaN(snow) && snow >= threshold) {
+          if (!firstSnowDay) firstSnowDay = day;
+          lastSnowDay = day;
+        }
+      });
 
-      if (lastSnowDay) {
-        const lastDate = new Date(lastSnowDay + 'T00:00:00');
-        const days = Math.max(
-          0,
-          Math.floor((today.getTime() - lastDate.getTime()) / 86400000)
-        );
-        droughtValueEl.textContent = days.toString();
-        droughtNoteEl.textContent = `Days since ${lastSnowDay}`;
-      } else if (contestStart && finalDate && finalDate >= contestStart) {
-        const startDate = new Date(contestStart + 'T00:00:00');
-        const days = Math.max(
-          0,
-          Math.floor((today.getTime() - startDate.getTime()) / 86400000)
-        );
-        droughtValueEl.textContent = days.toString();
-        droughtNoteEl.textContent = 'Days since contest start';
-      } else if (seasonalStart) {
-        const startDate = new Date(seasonalStart + 'T00:00:00');
-        const days = Math.max(
-          0,
-          Math.floor((today.getTime() - startDate.getTime()) / 86400000)
-        );
-        droughtValueEl.textContent = days.toString();
-        droughtNoteEl.textContent = 'Days since snow year start';
+      if (!firstSnowDay) {
+        droughtValueEl.textContent = '0';
+        droughtNoteEl.textContent = 'No ≥0.1" snow yet this season';
+      } else if (!lastSnowDay || firstSnowDay.getTime() === lastSnowDay.getTime()) {
+        droughtValueEl.textContent = '0';
+        droughtNoteEl.textContent = 'Only one ≥0.1" day so far';
       } else {
-        droughtValueEl.textContent = '--';
-        droughtNoteEl.textContent = 'Days since ≥0.1"';
+        let streakStart = null;
+        let streakEnd = null;
+        let streakLength = 0;
+        let longest = { length: 0, start: null, end: null };
+
+        const finalizeStreak = () => {
+          if (streakLength > longest.length) {
+            longest = {
+              length: streakLength,
+              start: streakStart,
+              end: streakEnd
+            };
+          }
+          streakStart = null;
+          streakEnd = null;
+          streakLength = 0;
+        };
+
+        json.daily.forEach(row => {
+          const day = parseISODate(row.date);
+          if (!day || day < firstSnowDay || day > lastSnowDay || day > limitDate) return;
+
+          const snow = row.snow;
+          if (typeof snow === 'number' && !Number.isNaN(snow)) {
+            if (snow < threshold) {
+              if (!streakStart) streakStart = day;
+              streakEnd = day;
+              streakLength += 1;
+            } else {
+              finalizeStreak();
+            }
+          } else {
+            finalizeStreak();
+          }
+        });
+        finalizeStreak();
+
+        if (longest.length > 0) {
+          droughtValueEl.textContent = longest.length.toString();
+          const startLabel = formatDateLabel(longest.start);
+          const endLabel = formatDateLabel(longest.end);
+          droughtNoteEl.textContent = longest.start && longest.end
+            ? `Longest lull: ${startLabel} → ${endLabel}`
+            : 'Longest lull between events';
+        } else {
+          droughtValueEl.textContent = '0';
+          droughtNoteEl.textContent = 'No lull between first & last events';
+        }
       }
     }
 
