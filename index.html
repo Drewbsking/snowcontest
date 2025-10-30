@@ -87,17 +87,40 @@
     cursor: pointer;
   }
 
-  .total-snow-value {
-    font-size: 3rem;
+  .totals-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-top: .5rem;
+  }
+
+  .total-box {
+    background: rgba(15,23,42,0.45);
+    border: 1px solid rgba(71,85,105,0.6);
+    border-radius: .75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+  }
+
+  .total-subhead {
+    font-size: .75rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .total-value {
+    font-size: 2.6rem;
     font-weight: 600;
     line-height: 1.1;
     color: var(--text-main);
   }
 
-  .total-snow-label {
-    font-size: 1rem;
+  .total-note {
+    font-size: .85rem;
     color: var(--text-dim);
-    margin-top: .25rem;
   }
 
   .footnote {
@@ -158,6 +181,12 @@
     to { transform: rotate(360deg); }
   }
 
+  @media (min-width: 540px) {
+    .totals-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   @media (min-width: 768px) {
     .wrap {
       grid-template-columns: 300px 1fr;
@@ -179,8 +208,11 @@
         <div class="totals-meta-line" id="season-label">
           Season …
         </div>
-        <div class="totals-meta-line" id="date-range-label">
-          Dates …
+        <div class="totals-meta-line" id="contest-date-label">
+          Contest dates …
+        </div>
+        <div class="totals-meta-line" id="seasonal-range-label">
+          Seasonal snow year …
         </div>
       </div>
 
@@ -190,11 +222,17 @@
       </div>
     </div>
 
-    <div class="total-snow-value" id="total-snow-value">
-      --
-    </div>
-    <div class="total-snow-label">
-      inches total snowfall
+    <div class="totals-grid">
+      <div class="total-box">
+        <div class="total-subhead">Contest Total</div>
+        <div class="total-value" id="contest-total-value">--</div>
+        <div class="total-note">Dec&nbsp;1 → Mar&nbsp;31 snowfall</div>
+      </div>
+      <div class="total-box">
+        <div class="total-subhead">Seasonal Total</div>
+        <div class="total-value" id="seasonal-total-value">--</div>
+        <div class="total-note">Jul&nbsp;1 → Jun&nbsp;30 snowfall</div>
+      </div>
     </div>
 
     <div class="footnote">
@@ -204,7 +242,9 @@
       </a>.
       Missing days = "M". "T" = trace (&lt;0.1"), counted as 0.0 in totals.
       <br/><br/>
-      Bars = daily snowfall. Line = running total Nov&nbsp;1 → Mar&nbsp;31.
+      Bars = daily snowfall. Line = cumulative contest total (Dec&nbsp;1 → Mar&nbsp;31).
+      Seasonal total tracks Jul&nbsp;1 → Jun&nbsp;30 snowfall.
+      Shaded region marks the contest window.
     </div>
 
   </section>
@@ -215,7 +255,8 @@
       <span>Daily Snow vs Cumulative Total</span>
       <span class="chart-sub">
         Bars = daily snowfall (inches).
-        Line = cumulative snowfall for that contest season.
+        Line = cumulative snowfall for the contest window (Dec&nbsp;1 → Mar&nbsp;31).
+        Seasonal totals cover Jul&nbsp;1 → Jun&nbsp;30. Shaded area shows in-season contest days.
       </span>
     </div>
 
@@ -235,6 +276,53 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
 <script>
+const contestHighlightPlugin = {
+  id: 'contestHighlight',
+  beforeDatasetsDraw(chart) {
+    const cfg = chart.options?.plugins?.contestHighlight;
+    if (!cfg?.enabled) return;
+
+    const xScale = chart.scales?.x;
+    if (!xScale || !chart.chartArea) return;
+
+    const startIndex = cfg.startIndex;
+    const endIndex = cfg.endIndex;
+    if (startIndex == null || endIndex == null || startIndex < 0 || endIndex < 0) {
+      return;
+    }
+
+    const start = Math.min(startIndex, endIndex);
+    const end = Math.max(startIndex, endIndex);
+    const left = edgeForIndex(xScale, start, -1);
+    const right = edgeForIndex(xScale, end, 1);
+    if (right <= left) return;
+
+    const { top, bottom } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.fillStyle = cfg.color || 'rgba(13,148,136,0.28)';
+    ctx.fillRect(left, top, right - left, bottom - top);
+    ctx.restore();
+  }
+};
+
+function edgeForIndex(scale, index, direction) {
+  if (!scale || !scale.ticks || scale.ticks.length === 0) {
+    return scale?.left ?? 0;
+  }
+  if (direction < 0) {
+    if (index <= 0) return scale.left;
+    const curr = scale.getPixelForTick(index);
+    const prev = scale.getPixelForTick(index - 1);
+    return (curr + prev) / 2;
+  }
+  const last = scale.ticks.length - 1;
+  if (index >= last) return scale.right;
+  const curr = scale.getPixelForTick(index);
+  const next = scale.getPixelForTick(index + 1);
+  return (curr + next) / 2;
+}
+
 let chartRef = null;
 let currentController = null; // to cancel in-flight fetches
 
@@ -244,7 +332,7 @@ function setLoading(isLoading) {
 }
 
 // Build dropdown with recent contest seasons
-// Season runs Nov 1 (YYYY) -> Mar 31 (YYYY+1)
+// Season runs Dec 1 (YYYY) -> Mar 31 (YYYY+1)
 function populateSeasonDropdown() {
   const seasonSelect = document.getElementById('seasonSelect');
   seasonSelect.innerHTML = '';
@@ -253,9 +341,9 @@ function populateSeasonDropdown() {
   const month = now.getMonth() + 1; // 1..12
   const year = now.getFullYear();
 
-  // If we're in Nov or Dec, current startYear = this year.
-  // Otherwise (Jan–Oct), current startYear = last year.
-  const currentStartYear = (month >= 11) ? year : (year - 1);
+  // If we're in Dec, current startYear = this year.
+  // Otherwise (Jan–Nov), current startYear = last year.
+  const currentStartYear = (month >= 12) ? year : (year - 1);
 
   // Add ~6 seasons back
   for (let y = currentStartYear; y >= currentStartYear - 5; y--) {
@@ -290,11 +378,13 @@ async function loadSeason(startYear) {
     if (json.error) {
       document.getElementById('station-label').textContent = 'Data error';
       document.getElementById('season-label').textContent  = '';
-      document.getElementById('date-range-label').textContent = '';
-      document.getElementById('total-snow-value').textContent = '--';
+      document.getElementById('contest-date-label').textContent = '';
+      document.getElementById('seasonal-range-label').textContent = '';
+      document.getElementById('contest-total-value').textContent = '--';
+      document.getElementById('seasonal-total-value').textContent = '--';
       console.error(json.error);
 
-      drawChart([], [], []);
+      drawChart([], [], [], null);
       setLoading(false);
       return;
     }
@@ -306,11 +396,22 @@ async function loadSeason(startYear) {
     document.getElementById('season-label').textContent =
       'Season ' + (json.season_label || '');
 
-    document.getElementById('date-range-label').textContent =
-      json.start_date + ' → ' + json.end_date;
+    const contestStart = json.contest_start || json.start_date;
+    const contestEnd = json.contest_end || json.end_date;
+    const seasonalStart = json.seasonal_start || contestStart;
+    const seasonalEnd = json.seasonal_end || contestEnd;
 
-    const totalSnow = (json.total_snow_in ?? 0).toFixed(1);
-    document.getElementById('total-snow-value').textContent = totalSnow;
+    document.getElementById('contest-date-label').textContent =
+      'Contest: ' + contestStart + ' → ' + contestEnd;
+
+    document.getElementById('seasonal-range-label').textContent =
+      'Seasonal Snow Year: ' + seasonalStart + ' → ' + seasonalEnd;
+
+    const contestTotal = (json.contest_total_snow_in ?? json.total_snow_in ?? 0).toFixed(1);
+    document.getElementById('contest-total-value').textContent = contestTotal;
+
+    const seasonalTotal = (json.seasonal_total_in ?? 0).toFixed(1);
+    document.getElementById('seasonal-total-value').textContent = seasonalTotal;
 
     // Prep chart arrays
     const labels = [];
@@ -323,7 +424,10 @@ async function loadSeason(startYear) {
       cumSnow.push(row.cum);
     });
 
-    drawChart(labels, dailySnow, cumSnow);
+    drawChart(labels, dailySnow, cumSnow, {
+      start: contestStart,
+      end: contestEnd
+    });
     setLoading(false);
 
   } catch (err) {
@@ -333,21 +437,40 @@ async function loadSeason(startYear) {
     }
     console.error('fetch failed', err);
     document.getElementById('station-label').textContent = 'Network error';
-    document.getElementById('total-snow-value').textContent = '--';
-    drawChart([], [], []);
+    document.getElementById('season-label').textContent = '';
+    document.getElementById('contest-date-label').textContent = '';
+    document.getElementById('seasonal-range-label').textContent = '';
+    document.getElementById('contest-total-value').textContent = '--';
+    document.getElementById('seasonal-total-value').textContent = '--';
+    drawChart([], [], [], null);
     setLoading(false);
   }
 }
 
 // Draw or redraw Chart.js chart
-function drawChart(labels, dailySnow, cumSnow) {
+function drawChart(labels, dailySnow, cumSnow, highlightRange) {
   const ctx = document.getElementById('snowChart').getContext('2d');
 
   if (chartRef) {
     chartRef.destroy();
   }
 
+  let highlightOpts = { enabled: false };
+  if (highlightRange && Array.isArray(labels) && labels.length > 0) {
+    const startIndex = labels.indexOf(highlightRange.start);
+    const endIndex = labels.lastIndexOf(highlightRange.end);
+    if (startIndex !== -1 && endIndex !== -1) {
+      highlightOpts = {
+        enabled: true,
+        startIndex,
+        endIndex,
+        color: 'rgba(13,148,136,0.28)'
+      };
+    }
+  }
+
   chartRef = new Chart(ctx, {
+    plugins: [contestHighlightPlugin],
     data: {
       labels,
       datasets: [
@@ -392,7 +515,8 @@ function drawChart(labels, dailySnow, cumSnow) {
               }
             }
           }
-        }
+        },
+        contestHighlight: highlightOpts
       },
       scales: {
         x: {

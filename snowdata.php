@@ -5,8 +5,9 @@
 // which corresponds to WHITE LAKE 4E and produced the snowfall
 // time series you saved in snow_2024.json. :contentReference[oaicite:3]{index=3}
 //
-// We define a "contest season" as Nov 1 (startYear)
-// through Mar 31 (startYear+1). You can request any startYear
+// We define a "contest season" as Dec 1 (startYear)
+// through Mar 31 (startYear+1). Seasonal totals span Jul 1 (startYear)
+// through Jun 30 (startYear+1). You can request any startYear
 // via ?startYear=2024, ?startYear=2025, etc.
 //
 // We cache per-season JSON so normal users get instant loads,
@@ -28,21 +29,23 @@ if (isset($_GET['startYear']) && preg_match('/^\d{4}$/', $_GET['startYear'])) {
     $startYear = intval($_GET['startYear']);
 } else {
     // default: figure out "current" contest season
-    // If we're in Nov or Dec, season startYear = this year.
-    // Otherwise (Jan–Oct), we are in the season that started last year.
+    // If we're in Dec, season startYear = this year.
+    // Otherwise (Jan–Nov), we are in the season that started last year.
     $nowY = intval(date('Y'));
     $nowM = intval(date('n')); // 1..12
-    $startYear = ($nowM >= 11) ? $nowY : ($nowY - 1);
+    $startYear = ($nowM >= 12) ? $nowY : ($nowY - 1);
 }
 
-// Season boundaries
-$START_DATE   = $startYear . '-11-01';
-$END_DATE     = ($startYear + 1) . '-03-31';
-$SEASON_LABEL = $startYear . '-' . ($startYear + 1);
+// Key date windows
+$CONTEST_START_DATE  = $startYear . '-12-01';
+$CONTEST_END_DATE    = ($startYear + 1) . '-03-31';
+$SEASONAL_START_DATE = $startYear . '-07-01';
+$SEASONAL_END_DATE   = ($startYear + 1) . '-06-30';
+$SEASON_LABEL        = $startYear . '-' . ($startYear + 1);
 
-// Figure out if this season is currently "active"
+// Figure out if this season is currently "active" (seasonal window)
 $today = date('Y-m-d');
-$isActiveSeason = ($today >= $START_DATE && $today <= $END_DATE);
+$isActiveSeason = ($today >= $SEASONAL_START_DATE && $today <= $SEASONAL_END_DATE);
 
 // Cache policy
 // Active season: refresh at most once/hour (3600s)
@@ -56,10 +59,20 @@ if (!is_dir($cacheDir)) {
 }
 $cacheFile = $cacheDir . '/snow_' . $startYear . '.json';
 
-// Serve cached if still fresh
+// Serve cached if still fresh AND already has the updated contest fields
 if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECONDS)) {
-    readfile($cacheFile);
-    exit;
+    $cachedRaw = @file_get_contents($cacheFile);
+    $cached = $cachedRaw ? json_decode($cachedRaw, true) : null;
+
+    $hasNewFields = $cached
+        && isset($cached['contest_total_snow_in'])
+        && isset($cached['seasonal_total_in'])
+        && (($cached['contest_start'] ?? null) === $CONTEST_START_DATE);
+
+    if ($hasNewFields) {
+        echo $cachedRaw;
+        exit;
+    }
 }
 
 // -------- Helper to call ACIS --------
@@ -93,7 +106,7 @@ function get_station_snow_data($sid, $startDate, $endDate) {
 }
 
 // -------- Pull from ACIS for THIS station only --------
-$stnData = get_station_snow_data($STATION_SID, $START_DATE, $END_DATE);
+$stnData = get_station_snow_data($STATION_SID, $SEASONAL_START_DATE, $SEASONAL_END_DATE);
 
 if (!$stnData || !isset($stnData['data'])) {
     // soft error, don't cache the error
@@ -101,8 +114,8 @@ if (!$stnData || !isset($stnData['data'])) {
         'error'        => 'No snowfall data returned from ACIS',
         'station_sid'  => $STATION_SID,
         'season_label' => $SEASON_LABEL,
-        'start_date'   => $START_DATE,
-        'end_date'     => $END_DATE
+        'start_date'   => $CONTEST_START_DATE,
+        'end_date'     => $CONTEST_END_DATE
     ]);
     exit;
 }
@@ -110,6 +123,8 @@ if (!$stnData || !isset($stnData['data'])) {
 // -------- Build daily + cumulative arrays --------
 $daily = [];
 $cumTotal = 0.0;
+$contestTotal = 0.0;
+$seasonalTotal = 0.0;
 
 foreach ($stnData['data'] as $row) {
     // $row like ["2025-01-10","2.0"]
@@ -124,14 +139,25 @@ foreach ($stnData['data'] as $row) {
         // cumTotal += 0
     } else {
         $snowIn = floatval($snowRaw);
-        $cumTotal += $snowIn;
     }
 
-    $daily[] = [
-        'date' => $date,
-        'snow' => $snowIn,
-        'cum'  => $cumTotal
-    ];
+    if ($snowIn !== null) {
+        if ($date >= $SEASONAL_START_DATE && $date <= $SEASONAL_END_DATE) {
+            $seasonalTotal += $snowIn;
+        }
+        if ($date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE) {
+            $contestTotal += $snowIn;
+            $cumTotal += $snowIn;
+        }
+    }
+
+    if ($date >= $CONTEST_START_DATE && $date <= $CONTEST_END_DATE) {
+        $daily[] = [
+            'date' => $date,
+            'snow' => $snowIn,
+            'cum'  => $cumTotal
+        ];
+    }
 }
 
 // -------- Final payload structure --------
@@ -139,10 +165,16 @@ $payload = [
     'station_name'   => $STATION_NAME,
     'station_sid'    => $STATION_SID,
     'season_label'   => $SEASON_LABEL,
-    'start_date'     => $START_DATE,
-    'end_date'       => $END_DATE,
-    'total_snow_in'  => $cumTotal,
-    'daily'          => $daily
+    'start_date'     => $CONTEST_START_DATE,
+    'end_date'       => $CONTEST_END_DATE,
+    'total_snow_in'  => $contestTotal,
+    'contest_start'             => $CONTEST_START_DATE,
+    'contest_end'               => $CONTEST_END_DATE,
+    'contest_total_snow_in'     => $contestTotal,
+    'seasonal_start'            => $SEASONAL_START_DATE,
+    'seasonal_end'              => $SEASONAL_END_DATE,
+    'seasonal_total_in'         => $seasonalTotal,
+    'daily'                     => $daily
 ];
 
 // Cache it (success only)
