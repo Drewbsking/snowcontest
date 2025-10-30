@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>White Lake Snowfall Contest Tracker</title>
+
+<style>
+  :root {
+    --bg: #0f172a;        /* slate-900 */
+    --panel: #1e293b;     /* slate-800 */
+    --text-main: #e2e8f0; /* slate-200 */
+    --text-dim: #94a3b8;  /* slate-400 */
+    --radius: 1rem;
+    --shadow: 0 24px 48px rgba(0,0,0,0.6);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 2rem;
+    line-height: 1.4;
+  }
+
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .card {
+    background: var(--panel);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem 1.5rem 1rem;
+  }
+
+  /* LEFT CARD HEADER */
+  .totals-head-row {
+    font-size: .8rem;
+    color: var(--text-dim);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .75rem;
+    align-items: start;
+    margin-bottom: .75rem;
+  }
+
+  .totals-meta {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
+
+  .totals-meta-line {
+    line-height: 1.2;
+  }
+
+  .season-picker-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: .4rem;
+  }
+
+  label[for="seasonSelect"] {
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-dim);
+  }
+
+  #seasonSelect {
+    background: #0f172a;
+    color: var(--text-main);
+    border-radius: .5rem;
+    border: 1px solid #475569;
+    font-size: .9rem;
+    line-height: 1.2;
+    padding: .4rem .6rem;
+    min-width: 7rem;
+    cursor: pointer;
+  }
+
+  .total-snow-value {
+    font-size: 3rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--text-main);
+  }
+
+  .total-snow-label {
+    font-size: 1rem;
+    color: var(--text-dim);
+    margin-top: .25rem;
+  }
+
+  .footnote {
+    font-size: .8rem;
+    color: var(--text-dim);
+    margin-top: 1rem;
+    line-height: 1.3;
+  }
+
+  .chart-card-header {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-main);
+    margin-bottom: .5rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chart-sub {
+    font-size: .85rem;
+    color: var(--text-dim);
+    line-height: 1.3;
+  }
+
+  .chart-box {
+    position: relative;
+    width: 100%;
+    height: 400px;
+  }
+
+  /* LOADING OVERLAY */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15,23,42,0.6); /* translucent slate bg */
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: row;
+    font-size: .9rem;
+    font-weight: 500;
+    color: var(--text-main);
+    z-index: 10;
+  }
+
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    border: 3px solid rgba(226,232,240,0.3); /* slate-200 @ 30% */
+    border-top-color: rgba(226,232,240,1);   /* slate-200 solid */
+    animation: spin 0.8s linear infinite;
+    margin-right: .5rem;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (min-width: 768px) {
+    .wrap {
+      grid-template-columns: 300px 1fr;
+      align-items: start;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- LEFT: Totals / Selector -->
+  <section class="card" id="total-card">
+    <div class="totals-head-row">
+      <div class="totals-meta">
+        <div class="totals-meta-line" id="station-label">
+          Loading station…
+        </div>
+        <div class="totals-meta-line" id="season-label">
+          Season …
+        </div>
+        <div class="totals-meta-line" id="date-range-label">
+          Dates …
+        </div>
+      </div>
+
+      <div class="season-picker-block">
+        <label for="seasonSelect">Contest Season</label>
+        <select id="seasonSelect"></select>
+      </div>
+    </div>
+
+    <div class="total-snow-value" id="total-snow-value">
+      --
+    </div>
+    <div class="total-snow-label">
+      inches total snowfall
+    </div>
+
+    <div class="footnote">
+      Source: Daily measured snowfall from the NWS Detroit/Pontiac office
+      (White Lake, MI) via NOAA ACIS. Missing days = "M". "T" = trace (&lt;0.1"),
+      which is treated as 0.0 inches in totals.
+      <br/><br/>
+      Bars = daily snowfall. Line = running total Nov&nbsp;1 → Mar&nbsp;31.
+    </div>
+  </section>
+
+  <!-- RIGHT: Chart -->
+  <section class="card" id="chart-card">
+    <div class="chart-card-header">
+      <span>Daily Snow vs Cumulative Total</span>
+      <span class="chart-sub">
+        Bars = daily snowfall (inches).
+        Line = cumulative snowfall for that contest season.
+      </span>
+    </div>
+
+    <div class="chart-box">
+      <!-- loading overlay sits on top of the canvas -->
+      <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+        <div>Loading snowfall data…</div>
+      </div>
+      <canvas id="snowChart" aria-label="Daily snowfall bar chart and cumulative snowfall line chart" role="img"></canvas>
+    </div>
+  </section>
+
+</div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+<script>
+let chartRef = null;
+
+// Show / hide loading overlay
+function setLoading(isLoading) {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.style.display = isLoading ? 'flex' : 'none';
+}
+
+// Build dropdown with recent contest seasons
+function populateSeasonDropdown() {
+  const seasonSelect = document.getElementById('seasonSelect');
+  seasonSelect.innerHTML = '';
+
+  const now = new Date();
+  const month = now.getMonth() + 1; // JS months 0-11
+  const year = now.getFullYear();
+
+  // If we're in Nov or Dec, startYear = this year.
+  // Otherwise (Jan–Oct), startYear = last year.
+  const currentStartYear = (month >= 11) ? year : (year - 1);
+
+  for (let y = currentStartYear; y >= currentStartYear - 5; y--) {
+    const label = `${y}-${y + 1}`;
+    const opt = document.createElement('option');
+    opt.value = y.toString();
+    opt.textContent = label;
+    seasonSelect.appendChild(opt);
+  }
+}
+
+// Fetch data for a season and update UI
+async function loadSeason(startYear) {
+  setLoading(true);
+
+  const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(startYear));
+  const json = await res.json();
+
+  if (json.error) {
+    document.getElementById('station-label').textContent = 'Data error';
+    document.getElementById('season-label').textContent  = '';
+    document.getElementById('date-range-label').textContent = '';
+    document.getElementById('total-snow-value').textContent = '--';
+    console.error(json.error);
+
+    drawChart([], [], []); // clears chart
+    setLoading(false);
+    return;
+  }
+
+  // Update totals card
+  document.getElementById('station-label').textContent =
+    json.station_name || 'White Lake NWS Office';
+
+  document.getElementById('season-label').textContent =
+    'Season ' + (json.season_label || '');
+
+  document.getElementById('date-range-label').textContent =
+    json.start_date + ' → ' + json.end_date;
+
+  const totalSnow = (json.total_snow_in ?? 0).toFixed(1);
+  document.getElementById('total-snow-value').textContent = totalSnow;
+
+  // Prep chart arrays
+  const labels = [];
+  const dailySnow = [];
+  const cumSnow = [];
+
+  json.daily.forEach(row => {
+    labels.push(row.date);
+    dailySnow.push(row.snow === null ? null : row.snow);
+    cumSnow.push(row.cum);
+  });
+
+  drawChart(labels, dailySnow, cumSnow);
+  setLoading(false);
+}
+
+// Draw or redraw Chart.js chart
+function drawChart(labels, dailySnow, cumSnow) {
+  const ctx = document.getElementById('snowChart').getContext('2d');
+
+  if (chartRef) {
+    chartRef.destroy();
+  }
+
+  chartRef = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Daily Snowfall (in)',
+          data: dailySnow,
+          yAxisID: 'yDaily',
+          borderWidth: 0
+          // Chart.js picks default bar color
+        },
+        {
+          type: 'line',
+          label: 'Cumulative Snowfall (in)',
+          data: cumSnow,
+          yAxisID: 'yCum',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.25,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: 'rgba(226,232,240,1)' // slate-200
+          }
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              if (items.length > 0) {
+                return items[0].label;
+              }
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 10,
+            color: 'rgba(148,163,184,1)' // slate-400
+          },
+          grid: {
+            color: 'rgba(51,65,85,0.4)' // slate-700-ish
+          }
+        },
+        yDaily: {
+          type: 'linear',
+          position: 'left',
+          title: {
+            display: true,
+            text: 'Daily (in)'
+          },
+          ticks: {
+            color: 'rgba(226,232,240,1)'
+          },
+          grid: {
+            color: 'rgba(51,65,85,0.4)'
+          }
+        },
+        yCum: {
+          type: 'linear',
+          position: 'right',
+          title: {
+            display: true,
+            text: 'Cumulative (in)'
+          },
+          ticks: {
+            color: 'rgba(226,232,240,1)'
+          },
+          grid: {
+            drawOnChartArea: false
+          }
+        }
+      }
+    }
+  });
+}
+
+// --- init ---
+populateSeasonDropdown();
+
+const seasonSelectEl = document.getElementById('seasonSelect');
+const initialYear = seasonSelectEl.options[0].value;
+loadSeason(initialYear);
+
+// reload when user picks a new season
+seasonSelectEl.addEventListener('change', (e) => {
+  loadSeason(e.target.value);
+});
+</script>
+</body>
+</html>
