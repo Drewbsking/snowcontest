@@ -839,8 +839,12 @@ function populateSeasonDropdown() {
   // For Jan–Jun, we remain in the season that began the previous Dec.
   const currentStartYear = (month >= 7) ? year : (year - 1);
 
-  // Add ~6 seasons back
-  for (let y = currentStartYear; y >= currentStartYear - 5; y--) {
+  const minSeasonYear = guessSheetConfigs.reduce(
+    (min, cfg) => Math.min(min, cfg.startYear),
+    currentStartYear
+  );
+
+  for (let y = currentStartYear; y >= minSeasonYear; y--) {
     const opt = document.createElement('option');
     opt.value = y.toString();
     opt.textContent = `${y}-${y + 1}`;
