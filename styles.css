@@ -211,20 +211,20 @@ body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  background: rgba(15,23,42,0.45);
+  background: rgba(15,23,42,0.45); /* match .total-box */
   border: 1px solid rgba(71,85,105,0.6);
   border-radius: .75rem;
-  padding: 0.65rem 0.9rem;
+  padding: 0.6rem 0.9rem; /* match .total-box */
   width: 100%;
   min-height: clamp(90px, 12vh, 120px);
-  justify-content: space-between;
-  gap: .4rem;
+  justify-content: flex-start; /* match .total-box */
+  gap: .35rem; /* match .total-box */
 }
 
 label[for="seasonSelect"] {
   font-size: .7rem;
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: .08em; /* match .total-subhead */
   color: var(--text-dim);
 }
 
@@ -544,7 +544,7 @@ label[for="seasonSelect"] {
   }
   #total-card {
     position: sticky;
-    top: clamp(4.75rem, 7vw, 6.25rem);
+    top: clamp(0.5rem, 1.5vw, 1rem); /* stick near the top */
     align-self: start;
     height: fit-content;
     /* Span many rows so right column items stack at the top
