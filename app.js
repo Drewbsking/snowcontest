@@ -1296,6 +1296,15 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
     chartPlugins.push(resolvedZoomPlugin);
   }
 
+  const animationDelay = (context) => {
+    if (!context || context.type !== 'data' || context.mode !== 'default') {
+      return 0;
+    }
+    const datasetIndex = context.datasetIndex ?? 0;
+    const base = datasetIndex === 0 ? 20 : 35;
+    return context.dataIndex * base;
+  };
+
   const pluginOptions = {
     legend: {
       labels: {
@@ -1382,6 +1391,26 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
       animation: {
         duration: 1200,
         easing: 'easeOutQuart'
+      },
+      animations: {
+        x: {
+          type: 'number',
+          easing: 'easeOutQuart',
+          duration: 900,
+          delay: animationDelay
+        },
+        y: {
+          type: 'number',
+          easing: 'easeOutQuart',
+          duration: 1200,
+          delay: animationDelay
+        },
+        tension: {
+          duration: 1200,
+          easing: 'easeOutQuart',
+          delay: animationDelay,
+          from: 0
+        }
       },
       responsive: true,
       maintainAspectRatio: false,
