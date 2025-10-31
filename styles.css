@@ -149,7 +149,8 @@ body::before {
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.5rem;
+  row-gap: 0.75rem;   /* tighter vertical spacing between sections */
+  column-gap: 1.5rem; /* keep horizontal spacing the same */
   position: relative;
   z-index: 1;
 }
@@ -572,7 +573,8 @@ label[for="seasonSelect"] {
 
 @media (min-width: 1100px) {
   .wrap {
-    grid-template-columns: minmax(280px, 340px) 2fr 1.3fr;
+    /* keep two-column layout to avoid tall-row gaps from mixed heights */
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
     column-gap: 1.25rem;
   }
 
