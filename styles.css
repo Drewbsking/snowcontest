@@ -20,6 +20,25 @@ body {
   overflow-x: hidden;
 }
 
+/* Decorative corner background image (place file as `corner-bg.png`).
+   Rendered beneath content and the snow overlay. */
+body::before {
+  content: "";
+  position: fixed;
+  right: max(0px, env(safe-area-inset-right));
+  bottom: max(0px, env(safe-area-inset-bottom));
+  width: min(42vw, 560px);
+  aspect-ratio: 3 / 2; /* approximate source ratio */
+  background-image: url("corner-bg.png");
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: right bottom;
+  opacity: 0.16;
+  pointer-events: none;
+  z-index: 0;
+  filter: grayscale(1) brightness(1.05) contrast(1.05) saturate(0.85);
+}
+
 .snow-layer {
   pointer-events: none;
   position: fixed;
@@ -59,6 +78,11 @@ body {
   .snow-layer {
     display: none;
   }
+}
+
+/* Hide corner art on smaller screens to reduce clutter */
+@media (max-width: 640px) {
+  body::before { display: none; }
 }
 
 .top-bar {
