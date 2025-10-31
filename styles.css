@@ -155,6 +155,16 @@ body {
   color: rgba(148,163,184,0.8);
 }
 
+.footer-link {
+  color: rgba(148,163,184,0.8);
+  text-decoration: none;
+}
+
+.footer-link:hover {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+
 .card {
   background: var(--panel);
   border-radius: var(--radius);

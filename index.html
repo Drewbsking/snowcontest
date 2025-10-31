@@ -23,24 +23,6 @@
   </nav>
 </div>
 <div class="wrap">
-  <!-- WeatherStar Embed -->
-  <section class="card weatherstar-card" aria-labelledby="weatherstar-heading">
-    <div class="chart-card-header">
-      <span id="weatherstar-heading">WeatherStar 4000+ Forecast</span>
-      <span class="chart-sub">
-        Automated forecast loop for White Lake, MI with every display and scan lines enabled.
-      </span>
-    </div>
-    <div class="weatherstar-embed">
-      <iframe
-        src="ws4kp/index.html?embed=1&amp;latLonQuery=White+Lake%2C+MI"
-        title="WeatherStar 4000+ forecast for White Lake, Michigan"
-        loading="lazy"
-        allowfullscreen
-      ></iframe>
-    </div>
-  </section>
-
   <!-- LEFT: Totals / Selector -->
   <section class="card" id="total-card">
     <div class="totals-head-row">
@@ -207,6 +189,24 @@
     </div>
   </section>
 
+  <!-- WeatherStar Embed -->
+  <section class="card weatherstar-card" aria-labelledby="weatherstar-heading">
+    <div class="chart-card-header">
+      <span id="weatherstar-heading">WeatherStar 4000+ Forecast</span>
+      <span class="chart-sub">
+        Automated forecast loop for White Lake, MI with every display and scan lines enabled.
+      </span>
+    </div>
+    <div class="weatherstar-embed">
+      <iframe
+        src="ws4kp/index.html?embed=1&amp;latLonQuery=White+Lake%2C+MI"
+        title="WeatherStar 4000+ forecast for White Lake, Michigan"
+        loading="lazy"
+        allowfullscreen
+      ></iframe>
+    </div>
+  </section>
+
 </div>
 
 <!-- Chart.js CDN -->
@@ -220,6 +220,10 @@
     <span id="data-updated">Data updated —</span>
     <span class="footer-sep">·</span>
     <span>Crafted by Andrew Bates</span>
+    <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://github.com/netbymatt/ws4kp" target="_blank" rel="noopener">
+      WeatherStar 4000+ by Matt Walsh
+    </a>
     <span class="footer-sep">·</span>
     <span class="footer-source">Powered by NOAA ACIS</span>
   </div>
