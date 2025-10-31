@@ -666,7 +666,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   const officialEl = document.getElementById('official-result-body');
   const seasonalEl = document.getElementById('seasonal-result-body');
 
-  if (!seasonTitleEl || !officialEl || !seasonalEl) {
+  if (!officialEl || !seasonalEl) {
     return;
   }
 
@@ -676,9 +676,11 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   const parsedYear = parseInt(startYearInput, 10);
   const fallbackLabel = Number.isFinite(parsedYear) ? `${parsedYear}-${parsedYear + 1}` : null;
 
-  seasonTitleEl.innerHTML = fallbackLabel
-    ? `<strong>${escapeHtml('Season ' + fallbackLabel)}</strong>`
-    : 'Select a season to view standings.';
+  if (seasonTitleEl) {
+    seasonTitleEl.innerHTML = fallbackLabel
+      ? `<strong>${escapeHtml('Season ' + fallbackLabel)}</strong>`
+      : 'Select a season to view standings.';
+  }
   officialEl.textContent = 'Loading official standings…';
   seasonalEl.textContent = 'Loading seasonal standings…';
 
@@ -743,7 +745,9 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   if (token !== currentResultsToken) return;
 
   const seasonLabel = seasonData?.season_label || fallbackLabel || `Season ${parsedYear}-${parsedYear + 1}`;
-  seasonTitleEl.innerHTML = `<strong>${escapeHtml(seasonLabel)}</strong>`;
+  if (seasonTitleEl) {
+    seasonTitleEl.innerHTML = `<strong>${escapeHtml(seasonLabel)}</strong>`;
+  }
 
   const contestStartStr = seasonData?.contest_start || seasonData?.start_date;
   const contestEndStr = seasonData?.contest_end || seasonData?.end_date;
