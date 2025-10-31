@@ -204,42 +204,20 @@ body::before {
 .totals-head-row {
   font-size: .78rem;
   color: var(--text-dim);
-  display: flex;
-  justify-content: space-between; /* chip on left, picker on right */
-  gap: .5rem;
-  align-items: center;
-  margin-bottom: .5rem;
-}
-
-.season-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  padding: .2rem .55rem;
-  border-radius: 9999px;
-  background: rgba(15,23,42,0.45);
-  border: 1px solid rgba(71,85,105,0.6);
-  color: var(--text-main);
-  font-size: .72rem;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.totals-meta {
-  display: flex;
-  flex-direction: column;
-  gap: .25rem;
-}
-
-.totals-meta-line {
-  line-height: 1.2;
+  margin-bottom: .45rem;
 }
 
 .season-picker-block {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
+  background: rgba(15,23,42,0.45);
+  border: 1px solid rgba(71,85,105,0.6);
+  border-radius: .75rem;
+  padding: 0.65rem 0.9rem;
+  width: 100%;
+  min-height: clamp(90px, 12vh, 120px);
+  justify-content: space-between;
   gap: .4rem;
 }
 
@@ -255,6 +233,7 @@ label[for="seasonSelect"] {
   color: var(--text-main);
   border-radius: .5rem;
   border: 1px solid #475569;
+  width: 100%;
   font-size: .9rem;
   line-height: 1.2;
   padding: .4rem .6rem;
