@@ -29,21 +29,21 @@ body {
 
 /* Decorative corner background image (place file as `corner-bg.png`).
    Rendered beneath content and the snow overlay. */
-body::before {
+/* Decorative corner image now anchored to footer, not viewport */
+.site-footer::after {
   content: "";
-  position: fixed;
+  position: absolute;
   right: max(0px, env(safe-area-inset-right));
-  bottom: max(0px, env(safe-area-inset-bottom));
+  bottom: 0;
   width: min(42vw, 560px);
-  aspect-ratio: 3 / 2; /* approximate source ratio */
+  aspect-ratio: 3 / 2;
   background-image: url("corner-bg.png");
   background-repeat: no-repeat;
   background-size: contain;
   background-position: right bottom;
-  opacity: 0.16;
+  opacity: 0.16; /* subtle but original colors (no filters) */
   pointer-events: none;
   z-index: 0;
-  filter: grayscale(1) brightness(1.05) contrast(1.05) saturate(0.85);
 }
 
 .snow-layer {
@@ -89,7 +89,7 @@ body::before {
 
 /* Hide corner art on smaller screens to reduce clutter */
 @media (max-width: 640px) {
-  body::before { display: none; }
+  .site-footer::after { display: none; }
 }
 
 .top-bar {
@@ -171,6 +171,7 @@ body::before {
   font-size: .78rem;
   color: var(--text-dim);
   position: relative;
+  overflow: hidden; /* keep decorative image within footer bounds */
   z-index: 2;
 }
 
@@ -181,6 +182,8 @@ body::before {
   flex-wrap: wrap;
   gap: .5rem;
   align-items: center;
+  position: relative;
+  z-index: 1; /* ensure text sits above decorative image */
 }
 
 .footer-sep {
