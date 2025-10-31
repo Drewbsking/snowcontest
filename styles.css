@@ -169,7 +169,7 @@ body {
   padding-top: clamp(1rem, 2vw, 1.5rem);
   border-top: 1px solid rgba(71,85,105,0.5);
   font-size: .78rem;
-  color: var(--text-dim);
+  color: var(--bg-gradient-mid); /* dark blue for stronger contrast */
   position: relative;
   overflow: hidden; /* keep decorative image within footer bounds */
   z-index: 2;
@@ -186,23 +186,13 @@ body {
   z-index: 1; /* ensure text sits above decorative image */
 }
 
-.footer-sep {
-  color: rgba(148,163,184,0.6);
-}
+.footer-sep { color: var(--bg-gradient-mid); }
 
-.footer-source {
-  color: rgba(148,163,184,0.8);
-}
+.footer-source { color: var(--bg-gradient-mid); }
 
-.footer-link {
-  color: rgba(148,163,184,0.8);
-  text-decoration: none;
-}
+.footer-link { color: var(--bg-gradient-mid); text-decoration: none; }
 
-.footer-link:hover {
-  color: #38bdf8;
-  text-decoration: underline;
-}
+.footer-link:hover { text-decoration: underline; }
 
 .card {
   background: var(--panel);
