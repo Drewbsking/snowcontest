@@ -927,10 +927,10 @@ async function loadSeason(startYear) {
     if (signal.aborted) return;
 
     if (json.error) {
-      document.getElementById('station-label').textContent = 'Data error';
-      document.getElementById('season-label').textContent  = '';
-      document.getElementById('contest-date-label').textContent = '';
-      document.getElementById('seasonal-range-label').textContent = '';
+      const st = document.getElementById('station-label'); if (st) st.textContent = 'Data error';
+      const sl = document.getElementById('season-label'); if (sl) sl.textContent = '';
+      const cd = document.getElementById('contest-date-label'); if (cd) cd.textContent = '';
+      const sr = document.getElementById('seasonal-range-label'); if (sr) sr.textContent = '';
       resetAnimatedNumber(document.getElementById('contest-total-value'));
       resetAnimatedNumber(document.getElementById('seasonal-total-value'));
       resetAnimatedNumber(document.getElementById('largest-storm-value'));
@@ -947,22 +947,30 @@ async function loadSeason(startYear) {
     }
 
     // Update totals card
-    document.getElementById('station-label').textContent =
-      json.station_name || 'White Lake Station';
+    {
+      const el = document.getElementById('station-label');
+      if (el) el.textContent = json.station_name || 'White Lake Station';
+    }
 
-    document.getElementById('season-label').textContent =
-      'Season ' + (json.season_label || '');
+    {
+      const el = document.getElementById('season-label');
+      if (el) el.textContent = 'Season ' + (json.season_label || '');
+    }
 
     const contestStart = json.contest_start || json.start_date;
     const contestEnd = json.contest_end || json.end_date;
     const seasonalStart = json.seasonal_start || contestStart;
     const seasonalEnd = json.seasonal_end || contestEnd;
 
-    document.getElementById('contest-date-label').textContent =
-      'Contest: ' + contestStart + ' → ' + contestEnd;
+    {
+      const el = document.getElementById('contest-date-label');
+      if (el) el.textContent = 'Contest: ' + contestStart + ' → ' + contestEnd;
+    }
 
-    document.getElementById('seasonal-range-label').textContent =
-      'Seasonal Snow Year: ' + seasonalStart + ' → ' + seasonalEnd;
+    {
+      const el = document.getElementById('seasonal-range-label');
+      if (el) el.textContent = 'Seasonal Snow Year: ' + seasonalStart + ' → ' + seasonalEnd;
+    }
     const srcEl = document.getElementById('data-source');
     if (srcEl) {
       const sid = json.station_sid ? ` (SID ${json.station_sid})` : '';
@@ -1199,10 +1207,10 @@ async function loadSeason(startYear) {
       return;
     }
     console.error('fetch failed', err);
-    document.getElementById('station-label').textContent = 'Network error';
-    document.getElementById('season-label').textContent = '';
-    document.getElementById('contest-date-label').textContent = '';
-    document.getElementById('seasonal-range-label').textContent = '';
+    const st = document.getElementById('station-label'); if (st) st.textContent = 'Network error';
+    const sl = document.getElementById('season-label'); if (sl) sl.textContent = '';
+    const cd = document.getElementById('contest-date-label'); if (cd) cd.textContent = '';
+    const sr = document.getElementById('seasonal-range-label'); if (sr) sr.textContent = '';
     resetAnimatedNumber(document.getElementById('contest-total-value'));
     resetAnimatedNumber(document.getElementById('seasonal-total-value'));
     resetAnimatedNumber(document.getElementById('largest-storm-value'));

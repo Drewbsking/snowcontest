@@ -204,11 +204,11 @@ body::before {
 .totals-head-row {
   font-size: .78rem;
   color: var(--text-dim);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: .75rem;
-  align-items: start;
-  margin-bottom: .75rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: .5rem;
+  align-items: flex-start;
+  margin-bottom: .5rem;
 }
 
 .totals-meta {
