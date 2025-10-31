@@ -914,6 +914,12 @@ async function loadSeason(startYear) {
   const { signal } = currentController;
   const parsedStartYear = parseInt(startYear, 10);
 
+  // Optimistically set season chip from selection
+  const chip = document.getElementById('season-chip');
+  if (chip && Number.isFinite(parsedStartYear)) {
+    chip.textContent = `Season ${parsedStartYear}-${parsedStartYear + 1}`;
+  }
+
   setLoading(true);
 
   try {
@@ -942,6 +948,8 @@ async function loadSeason(startYear) {
         seasonDataCache.delete(parsedStartYear);
         updateContestResults(parsedStartYear, null);
       }
+      // keep chip at dropdown-derived season if set; otherwise clear
+      if (chip && !Number.isFinite(parsedStartYear)) chip.textContent = 'Season —';
       setLoading(false);
       return;
     }
@@ -952,9 +960,10 @@ async function loadSeason(startYear) {
       if (el) el.textContent = json.station_name || 'White Lake Station';
     }
 
-    {
-      const el = document.getElementById('season-label');
-      if (el) el.textContent = 'Season ' + (json.season_label || '');
+    // update season chip with authoritative label
+    if (chip) {
+      const label = json.season_label || (Number.isFinite(parsedStartYear) ? `${parsedStartYear}-${parsedStartYear + 1}` : '—');
+      chip.textContent = `Season ${label}`;
     }
 
     const contestStart = json.contest_start || json.start_date;
@@ -1476,6 +1485,8 @@ populateSeasonDropdown();
 const seasonSelectEl = document.getElementById('seasonSelect');
 const initialYearOption = seasonSelectEl.options[0]?.value;
 if (initialYearOption) {
+  const chip = document.getElementById('season-chip');
+  if (chip) chip.textContent = `Season ${initialYearOption}-${parseInt(initialYearOption,10)+1}`;
   updateContestResults(initialYearOption);
   loadSeason(initialYearOption);
   syncDataLinks(parseInt(initialYearOption, 10));
@@ -1486,6 +1497,8 @@ if (initialYearOption) {
 // when the user changes the dropdown, load that year
 seasonSelectEl.addEventListener('change', (e) => {
   const selectedYear = e.target.value;
+  const chip = document.getElementById('season-chip');
+  if (chip && selectedYear) chip.textContent = `Season ${selectedYear}-${parseInt(selectedYear,10)+1}`;
   updateContestResults(selectedYear);
   loadSeason(selectedYear);
   syncDataLinks(parseInt(selectedYear, 10));
