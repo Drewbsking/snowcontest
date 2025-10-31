@@ -433,7 +433,7 @@ label[for="seasonSelect"] {
 
 @media (min-width: 768px) {
   .weatherstar-card {
-    grid-column: 1 / -1;
+    grid-column: 2 / -1;
   }
 }
 
