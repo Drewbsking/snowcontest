@@ -41,7 +41,7 @@ body {
   background-repeat: no-repeat;
   background-size: contain;
   background-position: right bottom;
-  opacity: 0.16;
+  opacity: 0.22; /* slightly stronger for visibility */
   pointer-events: none;
   z-index: 0;
 }
@@ -172,7 +172,7 @@ body {
   color: var(--bg-gradient-mid); /* dark blue for stronger contrast */
   position: relative;
   overflow: visible; /* allow decorative image above footer */
-  z-index: 2;
+  z-index: 0; /* ensure image sits behind the content frames */
 }
 
 .footer-wrap {
