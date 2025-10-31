@@ -20,10 +20,26 @@
   <nav class="top-nav">
     <a href="rules.html">Contest Rules</a>
     <a href="winners.html">Past Winners</a>
-    <a href="ws4kp/index.html?latLonQuery=White+Lake%2C+MI">WeatherStar 4000+</a>
   </nav>
 </div>
 <div class="wrap">
+  <!-- WeatherStar Embed -->
+  <section class="card weatherstar-card" aria-labelledby="weatherstar-heading">
+    <div class="chart-card-header">
+      <span id="weatherstar-heading">WeatherStar 4000+ Forecast</span>
+      <span class="chart-sub">
+        Automated forecast loop for White Lake, MI with every display and scan lines enabled.
+      </span>
+    </div>
+    <div class="weatherstar-embed">
+      <iframe
+        src="ws4kp/index.html?embed=1&amp;latLonQuery=White+Lake%2C+MI"
+        title="WeatherStar 4000+ forecast for White Lake, Michigan"
+        loading="lazy"
+        allowfullscreen
+      ></iframe>
+    </div>
+  </section>
 
   <!-- LEFT: Totals / Selector -->
   <section class="card" id="total-card">
