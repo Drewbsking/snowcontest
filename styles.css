@@ -35,13 +35,13 @@ body {
   position: absolute;
   right: max(0px, env(safe-area-inset-right));
   bottom: 0;
-  width: min(42vw, 560px);
+  width: min(55vw, 720px);
   aspect-ratio: 3 / 2;
   background-image: url("corner-bg.png");
   background-repeat: no-repeat;
   background-size: contain;
   background-position: right bottom;
-  opacity: 0.16; /* subtle but original colors (no filters) */
+  opacity: 0.28; /* slightly stronger so it's visible */
   pointer-events: none;
   z-index: 0;
 }
@@ -88,9 +88,7 @@ body {
 }
 
 /* Hide corner art on smaller screens to reduce clutter */
-@media (max-width: 640px) {
-  .site-footer::after { display: none; }
-}
+/* keep visible on small screens too */
 
 .top-bar {
   max-width: var(--max-width);
