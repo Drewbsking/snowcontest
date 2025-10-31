@@ -80,6 +80,81 @@ const guessStatEls = {
   highNote: document.getElementById('guess-high-note')
 };
 
+const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+function cancelElementAnimation(el) {
+  if (!el || !el._animationFrame) return;
+  cancelAnimationFrame(el._animationFrame);
+  el._animationFrame = null;
+}
+
+function resetAnimatedNumber(el, fallback = '--') {
+  if (!el) return;
+  cancelElementAnimation(el);
+  if (el.dataset) {
+    delete el.dataset.animatedValue;
+  }
+  el.textContent = fallback;
+}
+
+function animateNumberText(el, value, {
+  format = (val) => Math.round(val).toString(),
+  duration = 650,
+  easing = easeOutCubic,
+  fallback = '--',
+  precision = 1e-4,
+  startValue
+} = {}) {
+  if (!el) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    resetAnimatedNumber(el, fallback);
+    return;
+  }
+  let start = Number.isFinite(parseFloat(el?.dataset?.animatedValue))
+    ? parseFloat(el.dataset.animatedValue)
+    : null;
+  if (!Number.isFinite(start)) {
+    const parsedExisting = parseFloat((el.textContent || '').replace(/[^0-9.\-]/g, ''));
+    start = Number.isFinite(parsedExisting) ? parsedExisting : startValue;
+  }
+  if (!Number.isFinite(start)) {
+    start = 0;
+  }
+  const delta = numeric - start;
+  if (Math.abs(delta) < precision) {
+    cancelElementAnimation(el);
+    el.textContent = format(numeric);
+    if (el.dataset) {
+      el.dataset.animatedValue = String(numeric);
+    }
+    return;
+  }
+
+  cancelElementAnimation(el);
+  let initialTimestamp;
+  const step = (ts) => {
+    if (initialTimestamp === undefined) {
+      initialTimestamp = ts;
+    }
+    const elapsed = ts - initialTimestamp;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = easing(progress);
+    const current = start + delta * eased;
+    el.textContent = format(current);
+    if (progress < 1) {
+      el._animationFrame = requestAnimationFrame(step);
+      return;
+    }
+    el.textContent = format(numeric);
+    el._animationFrame = null;
+  };
+  if (el.dataset) {
+    el.dataset.animatedValue = String(numeric);
+  }
+  el._animationFrame = requestAnimationFrame(step);
+}
+
 function formatGuessNameList(entries) {
   const names = (entries || [])
     .map(entry => (entry && entry.name ? entry.name.trim() : 'Unknown'))
@@ -94,11 +169,11 @@ function formatGuessNameList(entries) {
 
 function setGuessStatsMessage(message) {
   if (!guessStatEls.avgValue) return;
-  guessStatEls.avgValue.textContent = '--';
+  resetAnimatedNumber(guessStatEls.avgValue);
   guessStatEls.avgNote.textContent = message;
-  guessStatEls.lowValue.textContent = '--';
+  resetAnimatedNumber(guessStatEls.lowValue);
   guessStatEls.lowNote.textContent = message;
-  guessStatEls.highValue.textContent = '--';
+  resetAnimatedNumber(guessStatEls.highValue);
   guessStatEls.highNote.textContent = message;
   renderGuessHistogram([]);
 }
@@ -113,7 +188,10 @@ function setGuessStatsData(guesses) {
 
   const sum = valid.reduce((acc, entry) => acc + entry.guess, 0);
   const avg = sum / valid.length;
-  guessStatEls.avgValue.textContent = formatInches(avg);
+  animateNumberText(guessStatEls.avgValue, avg, {
+    format: (val) => formatInches(val),
+    fallback: '--'
+  });
   guessStatEls.avgNote.textContent = `${valid.length} ${valid.length === 1 ? 'entry' : 'entries'}`;
 
   const epsilon = 1e-6;
@@ -122,11 +200,17 @@ function setGuessStatsData(guesses) {
   const minEntries = valid.filter(entry => Math.abs(entry.guess - minValue) < epsilon);
   const maxEntries = valid.filter(entry => Math.abs(entry.guess - maxValue) < epsilon);
 
-  guessStatEls.lowValue.textContent = formatInches(minValue);
+  animateNumberText(guessStatEls.lowValue, minValue, {
+    format: (val) => formatInches(val),
+    fallback: '--'
+  });
   const lowNames = formatGuessNameList(minEntries);
   guessStatEls.lowNote.textContent = lowNames === '—' ? '—' : `by ${lowNames}`;
 
-  guessStatEls.highValue.textContent = formatInches(maxValue);
+  animateNumberText(guessStatEls.highValue, maxValue, {
+    format: (val) => formatInches(val),
+    fallback: '--'
+  });
   const highNames = formatGuessNameList(maxEntries);
   guessStatEls.highNote.textContent = highNames === '—' ? '—' : `by ${highNames}`;
 
@@ -204,7 +288,10 @@ function renderGuessHistogram(entries) {
       ]
     },
     options: {
-      animation: false,
+      animation: {
+        duration: 650,
+        easing: 'easeOutQuart'
+      },
       responsive: true,
       maintainAspectRatio: false,
       scales: {
@@ -678,12 +765,12 @@ function populateSeasonDropdown() {
 
   const snowDroughtValueEl = document.getElementById('snow-drought-value');
   const snowDroughtNoteEl = document.getElementById('snow-drought-note');
-  if (snowDroughtValueEl) snowDroughtValueEl.textContent = '--';
+  if (snowDroughtValueEl) resetAnimatedNumber(snowDroughtValueEl);
   if (snowDroughtNoteEl) snowDroughtNoteEl.textContent = 'Days since ≥0.1"';
 
   const avgSnowValueEl = document.getElementById('average-snow-value');
   const avgSnowNoteEl = document.getElementById('average-snow-note');
-  if (avgSnowValueEl) avgSnowValueEl.textContent = '--';
+  if (avgSnowValueEl) resetAnimatedNumber(avgSnowValueEl);
   if (avgSnowNoteEl) avgSnowNoteEl.textContent = 'Across measurable days';
 
   const firstSnowValueEl = document.getElementById('first-snow-value');
@@ -744,9 +831,9 @@ async function loadSeason(startYear) {
       document.getElementById('season-label').textContent  = '';
       document.getElementById('contest-date-label').textContent = '';
       document.getElementById('seasonal-range-label').textContent = '';
-      document.getElementById('contest-total-value').textContent = '--';
-      document.getElementById('seasonal-total-value').textContent = '--';
-      document.getElementById('largest-storm-value').textContent = '--';
+      resetAnimatedNumber(document.getElementById('contest-total-value'));
+      resetAnimatedNumber(document.getElementById('seasonal-total-value'));
+      resetAnimatedNumber(document.getElementById('largest-storm-value'));
       document.getElementById('largest-storm-note').textContent = 'Unable to load';
       console.error(json.error);
 
@@ -782,11 +869,27 @@ async function loadSeason(startYear) {
       srcEl.textContent = `Source: NOAA ACIS – ${json.station_name || 'White Lake 4E'}${sid}`;
     }
 
-    const contestTotal = (json.contest_total_snow_in ?? json.total_snow_in ?? 0).toFixed(1);
-    document.getElementById('contest-total-value').textContent = contestTotal;
+    const contestTotalRaw = json.contest_total_snow_in ?? json.total_snow_in ?? 0;
+    animateNumberText(
+      document.getElementById('contest-total-value'),
+      contestTotalRaw,
+      {
+        format: (val) => Number(val).toFixed(1),
+        fallback: '--',
+        startValue: 0
+      }
+    );
 
-    const seasonalTotal = (json.seasonal_total_in ?? 0).toFixed(1);
-    document.getElementById('seasonal-total-value').textContent = seasonalTotal;
+    const seasonalTotalRaw = json.seasonal_total_in ?? 0;
+    animateNumberText(
+      document.getElementById('seasonal-total-value'),
+      seasonalTotalRaw,
+      {
+        format: (val) => Number(val).toFixed(1),
+        fallback: '--',
+        startValue: 0
+      }
+    );
 
     // update data links + source text
     const parsedYear = parseInt(startYear, 10);
@@ -833,10 +936,13 @@ async function loadSeason(startYear) {
     const largestStormValueEl = document.getElementById('largest-storm-value');
     const largestStormNoteEl = document.getElementById('largest-storm-note');
     if (largestDailyValue !== null) {
-      largestStormValueEl.textContent = largestDailyValue.toFixed(1);
+      animateNumberText(largestStormValueEl, largestDailyValue, {
+        format: (val) => Number(val).toFixed(1),
+        fallback: '--'
+      });
       largestStormNoteEl.textContent = largestDailyDate ? `On ${largestDailyDate}` : '';
     } else {
-      largestStormValueEl.textContent = '--';
+      resetAnimatedNumber(largestStormValueEl);
       largestStormNoteEl.textContent = 'No measurable snow';
     }
 
@@ -845,11 +951,14 @@ async function loadSeason(startYear) {
     if (avgSnowValueEl && avgSnowNoteEl) {
       if (countMeasurableDays > 0) {
         const avgSnow = sumMeasurableSnow / countMeasurableDays;
-        avgSnowValueEl.textContent = formatInches(avgSnow);
+        animateNumberText(avgSnowValueEl, avgSnow, {
+          format: (val) => formatInches(val),
+          fallback: '--'
+        });
         const dayLabel = countMeasurableDays === 1 ? 'day' : 'days';
         avgSnowNoteEl.textContent = `${countMeasurableDays} ${dayLabel} ≥0.1"`;
       } else {
-        avgSnowValueEl.textContent = '--';
+        resetAnimatedNumber(avgSnowValueEl);
         avgSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
       }
     }
@@ -903,10 +1012,16 @@ async function loadSeason(startYear) {
       }
 
       if (!firstSnowDay) {
-        droughtValueEl.textContent = '0';
+        animateNumberText(droughtValueEl, 0, {
+          format: (val) => Math.round(val).toString(),
+          fallback: '--'
+        });
         droughtNoteEl.textContent = 'No ≥0.1" snow yet this season';
       } else if (!lastSnowDay || firstSnowDay.getTime() === lastSnowDay.getTime()) {
-        droughtValueEl.textContent = '0';
+        animateNumberText(droughtValueEl, 0, {
+          format: (val) => Math.round(val).toString(),
+          fallback: '--'
+        });
         droughtNoteEl.textContent = 'Only one ≥0.1" day so far';
       } else {
         let streakStart = null;
@@ -947,14 +1062,20 @@ async function loadSeason(startYear) {
         finalizeStreak();
 
         if (longest.length > 0) {
-          droughtValueEl.textContent = longest.length.toString();
+          animateNumberText(droughtValueEl, longest.length, {
+            format: (val) => Math.round(val).toString(),
+            fallback: '--'
+          });
           const startLabel = formatDateLabel(longest.start);
           const endLabel = formatDateLabel(longest.end);
           droughtNoteEl.textContent = longest.start && longest.end
             ? `Longest lull: ${startLabel} → ${endLabel}`
             : 'Longest lull between events';
         } else {
-          droughtValueEl.textContent = '0';
+          animateNumberText(droughtValueEl, 0, {
+            format: (val) => Math.round(val).toString(),
+            fallback: '--'
+          });
           droughtNoteEl.textContent = 'No lull between first & last events';
         }
       }
@@ -982,9 +1103,9 @@ async function loadSeason(startYear) {
     document.getElementById('season-label').textContent = '';
     document.getElementById('contest-date-label').textContent = '';
     document.getElementById('seasonal-range-label').textContent = '';
-    document.getElementById('contest-total-value').textContent = '--';
-    document.getElementById('seasonal-total-value').textContent = '--';
-    document.getElementById('largest-storm-value').textContent = '--';
+    resetAnimatedNumber(document.getElementById('contest-total-value'));
+    resetAnimatedNumber(document.getElementById('seasonal-total-value'));
+    resetAnimatedNumber(document.getElementById('largest-storm-value'));
     document.getElementById('largest-storm-note').textContent = 'Unable to load';
     drawChart([], [], [], [], null);
     if (Number.isFinite(parsedStartYear)) {
@@ -1158,6 +1279,10 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
       ]
     },
     options: {
+      animation: {
+        duration: 900,
+        easing: 'easeOutQuart'
+      },
       responsive: true,
       maintainAspectRatio: false,
       interaction: {
