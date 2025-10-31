@@ -290,6 +290,13 @@ label[for="seasonSelect"] {
   text-decoration: underline;
 }
 
+.data-link[aria-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: default;
+  text-decoration: none;
+}
+
 .data-sep { color: var(--text-dim); }
 .data-source { color: var(--text-dim); }
 

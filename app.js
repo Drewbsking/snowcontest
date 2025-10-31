@@ -80,6 +80,9 @@ const guessStatEls = {
   highNote: document.getElementById('guess-high-note')
 };
 
+const guessCsvLinkEl = document.getElementById('guess-csv-link');
+let guessCsvUrl = null;
+
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
 function cancelElementAnimation(el) {
@@ -155,6 +158,49 @@ function animateNumberText(el, value, {
   el._animationFrame = requestAnimationFrame(step);
 }
 
+function disableGuessCsvLink() {
+  if (!guessCsvLinkEl) return;
+  if (guessCsvUrl) {
+    URL.revokeObjectURL(guessCsvUrl);
+    guessCsvUrl = null;
+  }
+  guessCsvLinkEl.href = '#';
+  guessCsvLinkEl.removeAttribute('download');
+  guessCsvLinkEl.setAttribute('aria-disabled', 'true');
+}
+
+function updateGuessCsvLink(startYear, entries) {
+  if (!guessCsvLinkEl) return;
+  if (guessCsvUrl) {
+    URL.revokeObjectURL(guessCsvUrl);
+    guessCsvUrl = null;
+  }
+  if (!Number.isFinite(startYear) || !Array.isArray(entries) || !entries.length) {
+    disableGuessCsvLink();
+    return;
+  }
+
+  const header = ['Name', 'Department', 'Guess (inches)'];
+  const dataRows = entries.map(entry => {
+    const name = entry?.name ? String(entry.name).trim() : '';
+    const dept = entry?.dept ? String(entry.dept).trim() : '';
+    const guess = Number.isFinite(entry?.guess) ? String(entry.guess) : '';
+    return [name, dept, guess];
+  });
+
+  const csvLines = [header, ...dataRows].map(row => row.map(cell => {
+    const safe = cell == null ? '' : String(cell);
+    const escaped = safe.replace(/"/g, '""');
+    return `"${escaped}"`;
+  }).join(',')).join('\r\n');
+
+  const blob = new Blob([csvLines], { type: 'text/csv;charset=utf-8;' });
+  guessCsvUrl = URL.createObjectURL(blob);
+  guessCsvLinkEl.href = guessCsvUrl;
+  guessCsvLinkEl.setAttribute('download', `snowfall_guesses_${startYear}-${startYear + 1}.csv`);
+  guessCsvLinkEl.removeAttribute('aria-disabled');
+}
+
 function formatGuessNameList(entries) {
   const names = (entries || [])
     .map(entry => (entry && entry.name ? entry.name.trim() : 'Unknown'))
@@ -167,6 +213,52 @@ function formatGuessNameList(entries) {
   return names.join(', ');
 }
 
+function formatClosestGuessList(entries) {
+  if (!Array.isArray(entries) || !entries.length) return '';
+  const formatted = [];
+  const seen = new Set();
+
+  entries.forEach(entry => {
+    if (!entry) return;
+    const name = entry.name ? String(entry.name).trim() : 'Unknown';
+    const guess = Number.isFinite(entry.guess) ? formatInches(entry.guess) : '';
+    const key = `${name}|${guess}`;
+    if (!name || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    const label = guess ? `${name} (${guess}")` : name;
+    formatted.push(label);
+  });
+
+  if (!formatted.length) return '';
+  if (formatted.length > 3) {
+    const remaining = formatted.length - 3;
+    return `${formatted.slice(0, 3).join(', ')} +${remaining} more`;
+  }
+  return formatted.join(', ');
+}
+
+function findClosestToAverage(entries, target, epsilon = 1e-6) {
+  if (!Array.isArray(entries) || !entries.length || !Number.isFinite(target)) {
+    return [];
+  }
+  let bestDelta = Infinity;
+  const closest = [];
+  entries.forEach(entry => {
+    if (!entry || !Number.isFinite(entry.guess)) return;
+    const delta = Math.abs(entry.guess - target);
+    if (delta + epsilon < bestDelta) {
+      bestDelta = delta;
+      closest.length = 0;
+      closest.push(entry);
+    } else if (Math.abs(delta - bestDelta) < epsilon) {
+      closest.push(entry);
+    }
+  });
+  return closest;
+}
+
 function setGuessStatsMessage(message) {
   if (!guessStatEls.avgValue) return;
   resetAnimatedNumber(guessStatEls.avgValue);
@@ -176,9 +268,10 @@ function setGuessStatsMessage(message) {
   resetAnimatedNumber(guessStatEls.highValue);
   guessStatEls.highNote.textContent = message;
   renderGuessHistogram([]);
+  disableGuessCsvLink();
 }
 
-function setGuessStatsData(guesses) {
+function setGuessStatsData(guesses, startYear) {
   if (!guessStatEls.avgValue) return;
   const valid = (guesses || []).filter(entry => entry && Number.isFinite(entry.guess));
   if (!valid.length) {
@@ -192,7 +285,13 @@ function setGuessStatsData(guesses) {
     format: (val) => formatInches(val),
     fallback: '--'
   });
-  guessStatEls.avgNote.textContent = `${valid.length} ${valid.length === 1 ? 'entry' : 'entries'}`;
+  const avgNoteParts = [`${valid.length} ${valid.length === 1 ? 'entry' : 'entries'}`];
+  const closestEntries = findClosestToAverage(valid, avg);
+  const closestLabel = formatClosestGuessList(closestEntries);
+  if (closestLabel) {
+    avgNoteParts.push(`Closest to avg: ${closestLabel}`);
+  }
+  guessStatEls.avgNote.textContent = avgNoteParts.join(' · ');
 
   const epsilon = 1e-6;
   const minValue = Math.min(...valid.map(entry => entry.guess));
@@ -215,6 +314,7 @@ function setGuessStatsData(guesses) {
   guessStatEls.highNote.textContent = highNames === '—' ? '—' : `by ${highNames}`;
 
   renderGuessHistogram(valid);
+  updateGuessCsvLink(startYear, valid);
 }
 
 function determineLastDataDate(dailyRows) {
@@ -621,7 +721,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     return;
   }
 
-  setGuessStatsData(guesses);
+  setGuessStatsData(guesses, parsedYear);
 
   if (seasonDataOverride) {
     seasonDataCache.set(parsedYear, seasonDataOverride);
