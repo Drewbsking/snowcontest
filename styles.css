@@ -41,7 +41,7 @@ body {
   background-repeat: no-repeat;
   background-size: contain;
   background-position: right bottom;
-  opacity: 0.22; /* slightly stronger for visibility */
+  opacity: 0.90; /* slightly stronger for visibility */
   pointer-events: none;
   z-index: 0;
 }
@@ -547,6 +547,9 @@ label[for="seasonSelect"] {
     top: clamp(4.75rem, 7vw, 6.25rem);
     align-self: start;
     height: fit-content;
+    /* Span many rows so right column items stack at the top
+       without inheriting the tall left column's row height */
+    grid-row: 1 / span 100;
   }
   #chart-card,
   #contest-results-card,
