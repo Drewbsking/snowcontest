@@ -6,15 +6,13 @@
   --radius: 1rem;
   --shadow: 0 24px 48px rgba(0,0,0,0.6);
   --max-width: 1180px;
-  --bg-gradient-mid: #1c2d46;
-  --bg-gradient-end: #80a3cb; /* sampled from corner-bg.png */
 }
 
 body {
   background: linear-gradient(180deg,
-              var(--bg) 0%,
-              var(--bg-gradient-mid) 45%,
-              var(--bg-gradient-end) 100%);
+    #7398c3 0%,
+    #8cb0d8 35%,
+    #b4c6e3 100%);
   color: var(--text-main);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
                Roboto, "Helvetica Neue", Arial, sans-serif;
