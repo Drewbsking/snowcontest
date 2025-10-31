@@ -102,7 +102,7 @@ function resetAnimatedNumber(el, fallback = '--') {
 
 function animateNumberText(el, value, {
   format = (val) => Math.round(val).toString(),
-  duration = 650,
+  duration = 900,
   easing = easeOutCubic,
   fallback = '--',
   precision = 1e-4,
@@ -389,7 +389,7 @@ function renderGuessHistogram(entries) {
     },
     options: {
       animation: {
-        duration: 650,
+        duration: 900,
         easing: 'easeOutQuart'
       },
       responsive: true,
@@ -1380,7 +1380,7 @@ function drawChart(labels, dailySnow, contestCum, seasonalCum, highlightRange) {
     },
     options: {
       animation: {
-        duration: 900,
+        duration: 1200,
         easing: 'easeOutQuart'
       },
       responsive: true,
