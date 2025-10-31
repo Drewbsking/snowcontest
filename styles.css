@@ -34,14 +34,14 @@ body {
   content: "";
   position: absolute;
   right: max(0px, env(safe-area-inset-right));
-  bottom: 0;
-  width: min(55vw, 720px);
+  bottom: 100%;
+  width: min(42vw, 560px);
   aspect-ratio: 3 / 2;
   background-image: url("corner-bg.png");
   background-repeat: no-repeat;
   background-size: contain;
   background-position: right bottom;
-  opacity: 0.28; /* slightly stronger so it's visible */
+  opacity: 0.16;
   pointer-events: none;
   z-index: 0;
 }
@@ -88,7 +88,9 @@ body {
 }
 
 /* Hide corner art on smaller screens to reduce clutter */
-/* keep visible on small screens too */
+@media (max-width: 640px) {
+  .site-footer::after { display: none; }
+}
 
 .top-bar {
   max-width: var(--max-width);
@@ -169,7 +171,7 @@ body {
   font-size: .78rem;
   color: var(--bg-gradient-mid); /* dark blue for stronger contrast */
   position: relative;
-  overflow: hidden; /* keep decorative image within footer bounds */
+  overflow: visible; /* allow decorative image above footer */
   z-index: 2;
 }
 
