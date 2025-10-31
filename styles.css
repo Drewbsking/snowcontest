@@ -136,6 +136,8 @@ body {
   border-top: 1px solid rgba(71,85,105,0.5);
   font-size: .78rem;
   color: var(--text-dim);
+  position: relative;
+  z-index: 2;
 }
 
 .footer-wrap {

@@ -1,8 +1,16 @@
 (() => {
   const STYLE_ID = 'global-snow-style';
   const LAYER_CLASS = 'snow-layer';
+  const BANK_CLASS = 'snow-bank';
   const FLAKE_CLASS = 'snowflake';
   const DEFAULT_FLAKES = 30;
+  const MAX_BANK_HEIGHT = 110; // px
+  const BANK_CHANCE = 0.35;
+  const BANK_INCREMENT_MIN = 0.8;
+  const BANK_INCREMENT_MAX = 2.6;
+
+  let bankHeight = 0;
+  let bankEl = null;
 
   const STYLE_CSS = `
 .snow-layer {
@@ -11,6 +19,20 @@
   inset: 0;
   overflow: hidden;
   z-index: 0;
+}
+.snow-bank {
+  pointer-events: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  z-index: 1;
+  transition: height 2.4s ease-out;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 60%),
+    radial-gradient(circle at 72% 0%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 62%),
+    linear-gradient(to top, rgba(243,246,249,0.95) 0%, rgba(243,246,249,0.75) 38%, rgba(243,246,249,0.45) 70%, rgba(243,246,249,0));
 }
 .snowflake {
   position: absolute;
@@ -41,7 +63,13 @@
   .snow-layer {
     display: none;
   }
-}`;
+}
+@media (max-width: 640px) {
+  .snow-bank {
+    display: none;
+  }
+}
+`;
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -60,6 +88,35 @@
       document.body.prepend(layer);
     }
     return layer;
+  }
+
+  function ensureBank() {
+    if (bankEl && bankEl.isConnected) return bankEl;
+    bankEl = document.querySelector(`.${BANK_CLASS}`);
+    if (!bankEl) {
+      bankEl = document.createElement('div');
+      bankEl.className = BANK_CLASS;
+      const footer = document.querySelector('.site-footer');
+      if (footer && footer.parentNode) {
+        footer.parentNode.insertBefore(bankEl, footer);
+      } else {
+        document.body.appendChild(bankEl);
+      }
+    }
+    bankEl.style.height = '0px';
+    return bankEl;
+  }
+
+  function randomIncrement() {
+    return BANK_INCREMENT_MIN + Math.random() * (BANK_INCREMENT_MAX - BANK_INCREMENT_MIN);
+  }
+
+  function maybeGrowBank() {
+    if (!bankEl) return;
+    if (bankHeight >= MAX_BANK_HEIGHT) return;
+    if (Math.random() > BANK_CHANCE) return;
+    bankHeight = Math.min(MAX_BANK_HEIGHT, bankHeight + randomIncrement());
+    bankEl.style.height = `${bankHeight.toFixed(1)}px`;
   }
 
   function spawnSnow(layer) {
@@ -87,14 +144,19 @@
       flake.style.animationDuration = `${duration}s`;
       flake.style.animationDelay = `${delay}s`;
 
+      flake.addEventListener('animationiteration', maybeGrowBank);
+      flake.addEventListener('animationend', maybeGrowBank);
+
       frag.appendChild(flake);
     }
     layer.appendChild(frag);
+    window.setTimeout(maybeGrowBank, 1000);
   }
 
   function initSnow() {
     injectStyle();
     const layer = ensureLayer();
+    bankEl = ensureBank();
     spawnSnow(layer);
   }
 
