@@ -1,3 +1,6 @@
 
 # runtime cache
 cache/*.json
+trash/
+.vscode/
+
