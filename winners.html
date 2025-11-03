@@ -382,7 +382,7 @@
             if (!Number.isFinite(officialTotal)) {
               return '<span class="detail">Totals unavailable for this season.</span>';
             }
-            const totalLabel = contestDone ? 'Final total' : 'Contest total so far';
+            const totalLabel = contestDone ? 'Final old truncated total' : 'Old truncated total so far';
             if (!officialResult.winners.length && !officialResult.allOver) {
               return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(officialTotal)}"</span>`;
             }
@@ -390,13 +390,13 @@
               const names = officialResult.winners.map(formatGuesser).join(', ');
               const margin = describeMargin(officialResult.margin, true);
               const context = contestDone
-                ? 'Contest completed — no official winner.'
-                : 'All guesses currently exceed the total.';
+                ? 'Old truncated season completed — no winner.'
+                : 'All guesses currently exceed the old truncated total.';
               return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${margin ? ` · ${margin}` : ''}`;
             }
             const names = officialResult.winners.map(formatGuesser).join(', ');
             const margin = describeMargin(officialResult.margin, false);
-            const label = contestDone ? 'Official winner' : 'Current leader';
+            const label = contestDone ? 'Old truncated season winner' : 'Old truncated season leader';
             return `${label}${officialResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${margin ? ` · ${margin}` : ''}`;
           })();
 
@@ -404,7 +404,7 @@
             if (!Number.isFinite(seasonalTotal)) {
               return '<span class="detail">Seasonal totals unavailable for this season.</span>';
             }
-            const totalLabel = seasonalDone ? 'Final seasonal total' : 'Seasonal total so far';
+            const totalLabel = seasonalDone ? 'Final new full season total' : 'New full season total so far';
             if (!seasonalResult.winners.length && !seasonalResult.allOver) {
               return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(seasonalTotal)}"</span>`;
             }
@@ -412,13 +412,13 @@
               const names = seasonalResult.winners.map(formatGuesser).join(', ');
               const margin = describeMargin(seasonalResult.margin, true);
               const context = seasonalDone
-                ? 'Season completed — no unofficial winner.'
-                : 'All guesses currently exceed the total.';
+                ? 'Season completed — no new full season winner.'
+                : 'All guesses currently exceed the new full season total.';
               return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${margin ? ` · ${margin}` : ''}`;
             }
             const names = seasonalResult.winners.map(formatGuesser).join(', ');
             const margin = describeMargin(seasonalResult.margin, false);
-            const label = seasonalDone ? 'Unofficial winner' : 'Unofficial leader';
+            const label = seasonalDone ? 'New full season winner' : 'New full season leader';
             return `${label}${seasonalResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${margin ? ` · ${margin}` : ''}`;
           })();
 

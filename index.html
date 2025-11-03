@@ -40,7 +40,6 @@
   <div class="season-inner">
     <div class="season-text">
       <label class="season-title" for="seasonSelect">Select Season</label>
-      <div class="season-sub">Dec 1 → Mar 31 (contest) · Jul 1 → Jun 30 (year)</div>
     </div>
     <select id="seasonSelect" aria-label="Contest season"></select>
   </div>
@@ -52,12 +51,12 @@
   <section class="card" id="total-card">
     <div class="totals-grid">
       <div class="total-box">
-        <div class="total-subhead">Contest Total</div>
+        <div class="total-subhead">Old Truncated Season</div>
         <div class="total-value" id="contest-total-value">--</div>
         <div class="total-note">Dec&nbsp;1 → Mar&nbsp;31 snowfall</div>
       </div>
       <div class="total-box">
-        <div class="total-subhead">Seasonal Total</div>
+        <div class="total-subhead">New Full Season</div>
         <div class="total-value" id="seasonal-total-value">--</div>
         <div class="total-note">Jul&nbsp;1 → Jun&nbsp;30 snowfall</div>
       </div>
@@ -120,21 +119,21 @@
   <!-- RIGHT: Contest Leaders -->
   <section class="card" id="contest-results-card">
     <div class="chart-card-header">
-      <span>Contest Leaders</span>
+      <span>Season Leaders</span>
       <span class="chart-sub">
-        Official contest uses closest-without-going-over scoring for Dec&nbsp;2 → Mar&nbsp;31 snowfall.
-        Seasonal totals (Jul&nbsp;1 → Jun&nbsp;30) earn unofficial bragging rights only.
+        Old truncated season uses closest-without-going-over scoring for Dec&nbsp;2 → Mar&nbsp;31 snowfall.
+        New full season (Jul&nbsp;1 → Jun&nbsp;30) highlights long-form totals.
       </span>
     </div>
 
 
     <div class="result-line">
-      <div class="result-subhead">Official Contest · Dec&nbsp;2 → Mar&nbsp;31</div>
+      <div class="result-subhead">Old Truncated Season · Dec&nbsp;2 → Mar&nbsp;31</div>
       <div id="official-result-body" class="result-detail">Loading official standings…</div>
     </div>
 
     <div class="result-line">
-      <div class="result-subhead">Seasonal Total · Jul&nbsp;1 → Jun&nbsp;30 (Unofficial)</div>
+      <div class="result-subhead">New Full Season · Jul&nbsp;1 → Jun&nbsp;30</div>
       <div id="seasonal-result-body" class="result-detail">Loading seasonal standings…</div>
     </div>
   </section>

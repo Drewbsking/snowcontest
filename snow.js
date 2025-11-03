@@ -20,7 +20,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  height: clamp(160px, 28vh, 320px);
+  height: 100vh; /* allow flakes to fall to the very bottom of the screen */
   overflow: hidden;
   z-index: 0;
   display: none;
