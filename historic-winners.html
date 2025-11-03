@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>White Lake Snowfall Contest · Historic Winners</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text-main: #e2e8f0;
+      --text-dim: #94a3b8;
+      --accent: #38bdf8;
+      --radius: 1rem;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 2rem 1.5rem 3rem;
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    nav {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      font-size: .9rem;
+    }
+
+    nav a { color: var(--accent); text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+
+    header h1 {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 600;
+    }
+
+    header p {
+      margin: .35rem 0 0;
+      color: var(--text-dim);
+      max-width: 70ch;
+    }
+
+    .card {
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .winners-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: .9rem;
+    }
+
+    .winner-row {
+      background: rgba(15,23,42,0.45);
+      border: 1px solid rgba(71,85,105,0.6);
+      border-radius: .9rem;
+      padding: 1rem 1.1rem;
+      display: grid;
+      grid-template-columns: 8.5rem 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .winner-season {
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+    }
+
+    .winner-detail { color: var(--text-main); }
+    .actual { color: var(--text-dim); }
+
+    .note { color: var(--text-dim); font-size: .95rem; }
+
+    @media (max-width: 520px) {
+      .winner-row { grid-template-columns: 1fr; }
+      .winner-season { opacity: .9; }
+    }
+
+    /* Footer (match site style) */
+    .site-footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(71,85,105,0.5);
+      font-size: .9rem;
+      color: var(--text-dim);
+    }
+    .footer-wrap { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+    .footer-link { color: var(--accent); text-decoration:none; }
+    .footer-link:hover { text-decoration:underline; }
+    .footer-sep { color: var(--text-dim); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="index.html">Dashboard</a>
+      <a href="custom-range.html">Date Range</a>
+      <a href="records.html">Season Records</a>
+      <a href="winners.html">Past Winners</a>
+      <a href="historic-winners.html" aria-current="page">Historic Winners</a>
+      <a href="ws4kp/index.html?latLonQuery=White+Lake%2C+MI">WeatherStar 4000+</a>
+    </nav>
+
+    <header>
+      <h1>Historic Contest Winners</h1>
+      <p>
+        Legacy winners list for the December&nbsp;1 → March&nbsp;31 contest window, transcribed from the provided PDF.
+        This list predates the current full-season format (Jul&nbsp;1 → Jun&nbsp;30).
+      </p>
+    </header>
+
+    <section class="card">
+      <div class="winners-list" aria-live="polite">
+        <div class="winner-row">
+          <div class="winner-season">2012–13</div>
+          <div class="winner-detail">Willis Greer (District 4) — 46.5" · <span class="actual">actual 46.1"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2013–14</div>
+          <div class="winner-detail">Norm Farley (District 7) — 79.0" · <span class="actual">actual 81.9"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2014–15</div>
+          <div class="winner-detail">Todd White (Engineering) — 35.6" · <span class="actual">actual 35.6"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2015–16</div>
+          <div class="winner-detail">David Pacitto (District 4) — 49.2" · <span class="actual">actual 49.2"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2016–17</div>
+          <div class="winner-detail">Drew Dunsky (Legal/Risk) — 36.2" · <span class="actual">actual 36.4"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2017–18</div>
+          <div class="winner-detail">Audley Edden (District 7) — 78.4" · <span class="actual">actual 77.2"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2018–19</div>
+          <div class="winner-detail">Brian McIsaac (District 8) — 32.5" · <span class="actual">actual 32.6"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2019–20</div>
+          <div class="winner-detail">Matt Willson (Legal) — 38.2" · <span class="actual">actual 38.2"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2020–21</div>
+          <div class="winner-detail">Jonathan Silvis (Construction), Ed Duda (District 4T), and DeJonte Greathouse (Engineering) — 39.2" · <span class="actual">actual 39.1"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2021–22</div>
+          <div class="winner-detail">Dave Leonard (District 4) and Ricky White (District 7) — 43.5" · <span class="actual">actual 43.5"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2022–23</div>
+          <div class="winner-detail">Jason Corrie (District 7) — 36.7" · <span class="actual">actual 36.7"</span></div>
+        </div>
+        <div class="winner-row">
+          <div class="winner-season">2023–24</div>
+          <div class="winner-detail">Mark Bishop (District 1) and Yahshua Lawson (District 4S) — 35.5" · <span class="actual">actual 35.4"</span></div>
+        </div>
+      </div>
+      <div class="note">
+        Note: The source also lists “Jerry Jehle (TOC) — 38.1", actual 38.1".” This appears to be a separate internal recognition; it’s included here for completeness.
+      </div>
+      <div class="note">
+        Source: <a href="List%20of%20award%20winners.pdf" class="footer-link" target="_blank" rel="noopener">List of award winners (PDF)</a>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="footer-wrap">
+        <span id="data-updated">Data updated —</span>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://github.com/Drewbsking/snowcontest" target="_blank" rel="noopener">Crafted by Andrew Bates</a>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://github.com/netbymatt/ws4kp" target="_blank" rel="noopener">WeatherStar 4000+ by Matt Walsh</a>
+        <span class="footer-sep">·</span>
+        <span>Powered by <a class="footer-link" href="https://data.rcc-acis.org/" target="_blank" rel="noopener">NOAA ACIS</a></span>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://www.weather.gov/dtx/supdata2" target="_blank" rel="noopener">DTX Snowfall Data</a>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://www.weather.gov/wrh/climate?wfo=dtx" target="_blank" rel="noopener">DTX Climate</a>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://www.almanac.com/winter-extended-forecast-farmers-almanac" target="_blank" rel="noopener">Farmer’s Almanac Winter Forecast</a>
+      </div>
+    </footer>
+  </div>
+  <script src="snow.js" defer></script>
+</body>
+</html>
+

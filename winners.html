@@ -144,13 +144,14 @@
       <a href="custom-range.html">Date Range</a>
       <a href="records.html">Season Records</a>
       <a href="rules.html">Contest Rules</a>
+      <a href="historic-winners.html">Historic Winners</a>
       <a href="ws4kp/index.html?latLonQuery=White+Lake%2C+MI">WeatherStar 4000+</a>
     </nav>
 
     <header>
       <h1>Past Contest Winners</h1>
       <p>
-        Contest winners are determined by the closest prediction without going over the full-season snowfall total (Jul&nbsp;1 → Jun&nbsp;30).
+        Contest winners are determined by the closest prediction to the season’s final snowfall total (absolute difference; Jul&nbsp;1 → Jun&nbsp;30).
       </p>
     </header>
 
@@ -194,9 +195,8 @@
       });
     }
 
-    function describeMargin(margin, wentOver) {
+    function describeMargin(margin) {
       if (margin == null || Number.isNaN(margin)) return '';
-      if (wentOver) return `over by ${formatInches(margin)}"`;
       if (margin < 1e-6) return 'exact match';
       return `within ${formatInches(margin)}"`;
     }
@@ -232,37 +232,26 @@
       return counted ? total : null;
     }
 
-    function pickPriceIsRightResult(guesses, target) {
+    function pickAbsoluteClosestResult(guesses, target) {
       if (!Array.isArray(guesses) || !Number.isFinite(target)) {
-        return { winners: [], margin: null, allOver: false };
+        return { winners: [], margin: null };
       }
       const epsilon = 1e-6;
-      const eligible = [];
-      const over = [];
+      let best = Infinity;
+      const winners = [];
       guesses.forEach(entry => {
         if (!entry || !Number.isFinite(entry.guess)) return;
-        const diff = target - entry.guess;
-        if (diff >= -epsilon) {
-          eligible.push({ entry, margin: Math.max(diff, 0) });
-        } else {
-          over.push({ entry, margin: Math.abs(diff) });
+        const m = Math.abs(target - entry.guess);
+        if (m + epsilon < best) {
+          best = m;
+          winners.length = 0;
+          winners.push({ ...entry, margin: m });
+        } else if (Math.abs(m - best) < epsilon) {
+          winners.push({ ...entry, margin: m });
         }
       });
-      if (eligible.length) {
-        const min = Math.min(...eligible.map(x => x.margin));
-        const winners = eligible
-          .filter(x => Math.abs(x.margin - min) < epsilon)
-          .map(x => ({ ...x.entry, margin: x.margin, wentOver: false }));
-        return { winners, margin: min, allOver: false };
-      }
-      if (over.length) {
-        const min = Math.min(...over.map(x => x.margin));
-        const winners = over
-          .filter(x => Math.abs(x.margin - min) < epsilon)
-          .map(x => ({ ...x.entry, margin: x.margin, wentOver: true }));
-        return { winners, margin: min, allOver: true };
-      }
-      return { winners: [], margin: null, allOver: false };
+      if (!Number.isFinite(best)) return { winners: [], margin: null };
+      return { winners, margin: best };
     }
 
     function parseCsv(text) {
@@ -426,8 +415,8 @@
           }
 
           const seasonResult = seasonTotal != null
-            ? pickPriceIsRightResult(guesses, seasonTotal)
-            : { winners: [], margin: null, allOver: false };
+            ? pickAbsoluteClosestResult(guesses, seasonTotal)
+            : { winners: [], margin: null };
 
           const rangeText = (() => {
             const start = parseISODate(seasonStartIso);
@@ -443,19 +432,11 @@
               return '<span class="detail">Season totals unavailable for this season.</span>';
             }
             const totalLabel = seasonDone ? 'Final season total' : 'Season total so far';
-            if (!seasonResult.winners.length && !seasonResult.allOver) {
+            if (!seasonResult.winners.length) {
               return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(seasonTotal)}"</span>`;
             }
-            if (seasonResult.allOver) {
-              const names = seasonResult.winners.map(formatGuesser).join(', ');
-              const margin = describeMargin(seasonResult.margin, true);
-              const context = seasonDone
-                ? 'Season completed — no qualifying winner.'
-                : 'All guesses currently exceed the season total.';
-              return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${margin ? ` · ${margin}` : ''}`;
-            }
             const names = seasonResult.winners.map(formatGuesser).join(', ');
-            const margin = describeMargin(seasonResult.margin, false);
+            const margin = describeMargin(seasonResult.margin);
             const label = seasonDone ? 'Season winner' : 'Season leader';
             return `${label}${seasonResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${margin ? ` · ${margin}` : ''}`;
           })();

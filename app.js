@@ -408,12 +408,9 @@ function escapeHtml(value) {
   });
 }
 
-function describeMargin(margin, wentOver) {
+function describeMargin(margin) {
   if (margin == null || Number.isNaN(margin)) {
     return '';
-  }
-  if (wentOver) {
-    return `over by ${formatInches(margin)}"`;
   }
   if (margin < 1e-6) {
     return 'exact match';
@@ -679,52 +676,33 @@ async function fetchSeasonTotals(startYear) {
   return json;
 }
 
-function pickPriceIsRightResult(guesses, target) {
+function pickAbsoluteClosestResult(guesses, target) {
   if (!Array.isArray(guesses) || !Number.isFinite(target)) {
-    return { winners: [], margin: null, allOver: false };
+    return { winners: [], margin: null };
   }
 
   const epsilon = 1e-6;
-  const eligible = [];
-  const over = [];
+  let best = Infinity;
+  const winners = [];
 
   guesses.forEach(entry => {
     if (!entry || !Number.isFinite(entry.guess)) {
       return;
     }
-    const delta = target - entry.guess;
-    if (delta >= -epsilon) {
-      eligible.push({ entry, margin: Math.max(delta, 0) });
-    } else {
-      over.push({ entry, margin: Math.abs(delta) });
+    const m = Math.abs(target - entry.guess);
+    if (m + epsilon < best) {
+      best = m;
+      winners.length = 0;
+      winners.push({ ...entry, margin: m });
+    } else if (Math.abs(m - best) < epsilon) {
+      winners.push({ ...entry, margin: m });
     }
   });
 
-  if (eligible.length) {
-    const minMargin = Math.min(...eligible.map(item => item.margin));
-    const winners = eligible
-      .filter(item => Math.abs(item.margin - minMargin) < epsilon)
-      .map(item => ({
-        ...item.entry,
-        margin: item.margin,
-        wentOver: false
-      }));
-    return { winners, margin: minMargin, allOver: false };
+  if (!Number.isFinite(best)) {
+    return { winners: [], margin: null };
   }
-
-  if (over.length) {
-    const minOver = Math.min(...over.map(item => item.margin));
-    const closest = over
-      .filter(item => Math.abs(item.margin - minOver) < epsilon)
-      .map(item => ({
-        ...item.entry,
-        margin: item.margin,
-        wentOver: true
-      }));
-    return { winners: closest, margin: minOver, allOver: true };
-  }
-
-  return { winners: [], margin: null, allOver: false };
+  return { winners, margin: best };
 }
 
 async function updateContestResults(startYearInput, seasonDataOverride) {
@@ -828,20 +806,12 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   } else if (seasonTotal == null) {
     seasonalMessage = 'Seasonal snowfall data is unavailable for this season.';
   } else {
-    const seasonalResult = pickPriceIsRightResult(guesses, seasonTotal);
-    if (!seasonalResult.winners.length && !seasonalResult.allOver) {
+    const seasonalResult = pickAbsoluteClosestResult(guesses, seasonTotal);
+    if (!seasonalResult.winners.length) {
       seasonalMessage = 'No leader could be determined.';
-    } else if (seasonalResult.allOver) {
-      const names = seasonalResult.winners.map(formatGuesserDisplay).join(', ');
-      const marginLabel = describeMargin(seasonalResult.margin, true);
-      const totalLabel = seasonStage === 'done' ? 'Final season total' : 'Season total so far';
-      const contextText = seasonStage === 'done'
-        ? 'Season completed — no qualifying winner (all guesses exceeded the final total).'
-        : 'No season leader yet — every guess is still above the current total.';
-      seasonalMessage = `${contextText} Closest over guess: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
     } else {
       const names = seasonalResult.winners.map(formatGuesserDisplay).join(', ');
-      const marginLabel = describeMargin(seasonalResult.margin, false);
+      const marginLabel = describeMargin(seasonalResult.margin);
       const label = seasonStage === 'done' ? 'Season winner' : 'Season leader';
       const totalLabel = seasonStage === 'done' ? 'Final season total' : 'Season total so far';
       seasonalMessage = `${label}${seasonalResult.winners.length > 1 ? 's' : ''}: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
