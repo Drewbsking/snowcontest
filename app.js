@@ -517,6 +517,71 @@ function formatISODate(date) {
   return `${y}-${m}-${d}`;
 }
 
+// --- Holiday helpers ---
+function getNthWeekdayOfMonth(year, month1to12, weekday0to6, nth) {
+  // weekday: 0=Sun..6=Sat, nth: 1..5
+  const firstOfMonth = new Date(year, month1to12 - 1, 1);
+  const firstWeekday = firstOfMonth.getDay();
+  const offset = (7 + weekday0to6 - firstWeekday) % 7; // days from the 1st to first desired weekday
+  const day = 1 + offset + (nth - 1) * 7;
+  const result = new Date(year, month1to12 - 1, day);
+  if (result.getMonth() !== month1to12 - 1) return null; // overflow
+  return result;
+}
+
+function getHolidayListForSeason(startYear) {
+  // Season spans Jul 1 (startYear) -> Jun 30 (startYear+1)
+  const holidays = [];
+  const nextYear = startYear + 1;
+  // Thanksgiving: 4th Thu in Nov of startYear
+  const thanksgiving = getNthWeekdayOfMonth(startYear, 11, 4, 4);
+  holidays.push({ key: 'thanksgiving', label: 'Thanksgiving', date: thanksgiving });
+  // Christmas: Dec 25, startYear
+  holidays.push({ key: 'christmas', label: 'Christmas', date: new Date(startYear, 11, 25) });
+  // New Year’s Day: Jan 1, nextYear
+  holidays.push({ key: 'newyear', label: "New Year’s Day", date: new Date(nextYear, 0, 1) });
+  // MLK Day: 3rd Monday in Jan, nextYear (weekday=1)
+  holidays.push({ key: 'mlk', label: 'MLK Day', date: getNthWeekdayOfMonth(nextYear, 1, 1, 3) });
+  // Presidents Day: 3rd Monday in Feb, nextYear (weekday=1)
+  holidays.push({ key: 'presidents', label: "Presidents Day", date: getNthWeekdayOfMonth(nextYear, 2, 1, 3) });
+  return holidays.map(h => ({ ...h, iso: h.date ? formatISODate(h.date) : null }));
+}
+
+function renderHolidayBadges(startYear, daily) {
+  const container = document.getElementById('holiday-badges');
+  if (!container) return;
+  container.innerHTML = '';
+  const measurableThreshold = 0.1;
+  const holidays = getHolidayListForSeason(parseInt(startYear, 10));
+
+  holidays.forEach(h => {
+    let amount = null; // null = missing/not found; number = inches
+    if (h.iso) {
+      const row = Array.isArray(daily) ? daily.find(r => r && r.date === h.iso) : null;
+      if (row) {
+        amount = (typeof row.snow === 'number' && !Number.isNaN(row.snow)) ? row.snow : null;
+      }
+    }
+
+    const badge = document.createElement('span');
+    badge.className = 'holiday-badge';
+
+    if (amount == null) {
+      badge.classList.add('is-missing');
+      badge.title = `${h.label} – data unavailable`;
+      badge.innerHTML = `${escapeHtml(h.label)} <span class="amt">—</span>`;
+    } else {
+      const yes = amount >= measurableThreshold;
+      badge.classList.add(yes ? 'is-yes' : 'is-no');
+      const amt = `${formatInches(amount)}\"`;
+      badge.title = `${h.label} – ${yes ? 'Measurable snow' : 'No measurable snow'} (${amt})`;
+      badge.innerHTML = `${escapeHtml(h.label)} <span class="amt">${amt}</span>`;
+    }
+
+    container.appendChild(badge);
+  });
+}
+
 function computeWindowTotal(daily, startIso, endIso) {
   if (!Array.isArray(daily) || !startIso || !endIso) {
     return null;
@@ -887,6 +952,11 @@ function populateSeasonDropdown() {
   if (lastSnowValueEl) lastSnowValueEl.textContent = '--';
   if (lastSnowNoteEl) lastSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
 
+  const twoPlusValueEl = document.getElementById('two-plus-days-value');
+  const twoPlusNoteEl = document.getElementById('two-plus-days-note');
+  if (twoPlusValueEl) resetAnimatedNumber(twoPlusValueEl);
+  if (twoPlusNoteEl) twoPlusNoteEl.textContent = 'Days with ≥2.0"';
+
   const now = new Date();
   const month = now.getMonth() + 1; // 1..12
   const year = now.getFullYear();
@@ -1010,6 +1080,8 @@ async function loadSeason(startYear) {
     const contestCum = [];
     const seasonalCum = [];
     const measurableThreshold = 0.1;
+    const heavyThreshold = 2.0;
+    let heavyDayCount = 0;
     let largestDailyValue = null;
     let largestDailyDate = null;
     let firstSnowDay = null;
@@ -1037,8 +1109,14 @@ async function loadSeason(startYear) {
           sumMeasurableSnow += snowValue;
           countMeasurableDays += 1;
         }
+        if (snowValue >= heavyThreshold) {
+          heavyDayCount += 1;
+        }
       }
     });
+
+    // Render holiday badges with measured amounts
+    renderHolidayBadges(startYear, json.daily);
 
     const largestStormValueEl = document.getElementById('largest-storm-value');
     const largestStormNoteEl = document.getElementById('largest-storm-note');
@@ -1100,6 +1178,17 @@ async function loadSeason(startYear) {
         lastSnowValueEl.textContent = '--';
         lastSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
       }
+    }
+
+    // 2+ inch day count (seasonal window)
+    const twoPlusValueEl2 = document.getElementById('two-plus-days-value');
+    const twoPlusNoteEl2 = document.getElementById('two-plus-days-note');
+    if (twoPlusValueEl2 && twoPlusNoteEl2) {
+      animateNumberText(twoPlusValueEl2, heavyDayCount, {
+        format: (val) => Math.round(val).toString(),
+        fallback: '--'
+      });
+      // keep the static note text
     }
 
     const droughtValueEl = document.getElementById('snow-drought-value');
