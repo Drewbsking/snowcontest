@@ -11,6 +11,7 @@
 
   let bankHeight = 0;
   let bankEl = null;
+  let snowActive = false;
 
   const STYLE_CSS = `
 .snow-layer {
@@ -22,6 +23,7 @@
   height: clamp(160px, 28vh, 320px);
   overflow: hidden;
   z-index: 0;
+  display: none;
 }
 .snow-bank {
   pointer-events: none;
@@ -36,7 +38,9 @@
     radial-gradient(circle at 18% 0%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 60%),
     radial-gradient(circle at 72% 0%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 62%),
     linear-gradient(to top, rgba(243,246,249,0.95) 0%, rgba(243,246,249,0.75) 38%, rgba(243,246,249,0.45) 70%, rgba(243,246,249,0));
+  display: none;
 }
+.snow-layer.is-active, .snow-bank.is-active { display: block; }
 .snowflake {
   position: absolute;
   top: -10px;
@@ -120,7 +124,7 @@
   }
 
   function maybeGrowBank() {
-    if (!bankEl) return;
+    if (!bankEl || !snowActive) return;
     if (bankHeight >= MAX_BANK_HEIGHT) return;
     if (Math.random() > BANK_CHANCE) return;
     bankHeight = Math.min(MAX_BANK_HEIGHT, bankHeight + randomIncrement());
@@ -161,11 +165,50 @@
     window.setTimeout(maybeGrowBank, 1000);
   }
 
+  function setSnowActive(active) {
+    snowActive = !!active;
+    const layer = document.querySelector(`.${LAYER_CLASS}`);
+    if (layer) layer.classList.toggle('is-active', snowActive);
+    if (bankEl) bankEl.classList.toggle('is-active', snowActive);
+  }
+
+  function isFooterVisible() {
+    const footer = document.querySelector('.site-footer');
+    if (!footer) return false;
+    const rect = footer.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    return rect.top < vh; // any part of footer is visible
+  }
+
+  function setupVisibilityObserver() {
+    const footer = document.querySelector('.site-footer');
+    if (!footer) {
+      setSnowActive(false);
+      return;
+    }
+    if ('IntersectionObserver' in window) {
+      const obs = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          setSnowActive(entry.isIntersecting && entry.intersectionRatio > 0);
+        }
+      }, { root: null, threshold: [0, 0.05] });
+      obs.observe(footer);
+    } else {
+      const onScroll = () => setSnowActive(isFooterVisible());
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll);
+      onScroll();
+    }
+  }
+
   function initSnow() {
     injectStyle();
     const layer = ensureLayer();
     bankEl = ensureBank();
     spawnSnow(layer);
+    // activate only when footer is visible
+    setSnowActive(isFooterVisible());
+    setupVisibilityObserver();
   }
 
   if (document.readyState === 'loading') {
