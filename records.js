@@ -89,11 +89,40 @@ function computeSeasonStats(json, startYear) {
   const lastSnow = lastIndex >= 0 ? parseISODate(daily[lastIndex].date) : null;
 
   let heavyDayCount = 0;
+  let streakLength = 0;
+  let streakStart = null;
+  let longestStreak = { length: 0, start: null, end: null };
+
   daily.forEach((row) => {
     if (typeof row?.snow === 'number' && !Number.isNaN(row.snow) && row.snow >= HEAVY_DAY_THRESHOLD) {
       heavyDayCount += 1;
     }
+    const day = parseISODate(row?.date);
+    const snow = typeof row?.snow === 'number' && !Number.isNaN(row.snow) ? row.snow : null;
+    if (snow != null && snow >= MEASURABLE_THRESHOLD) {
+      if (streakLength === 0) {
+        streakStart = day;
+      }
+      streakLength += 1;
+      if (streakLength > longestStreak.length) {
+        longestStreak = {
+          length: streakLength,
+          start: streakStart,
+          end: day
+        };
+      }
+    } else if (streakLength > 0) {
+      streakLength = 0;
+      streakStart = null;
+    }
   });
+  if (streakLength > 0 && streakLength > longestStreak.length) {
+    longestStreak = {
+      length: streakLength,
+      start: streakStart,
+      end: parseISODate(daily[daily.length - 1]?.date) || streakStart
+    };
+  }
 
   let longest = { length: 0, start: null, end: null };
   if (firstIndex >= 0 && lastIndex >= firstIndex) {
@@ -160,6 +189,7 @@ function computeSeasonStats(json, startYear) {
     lastSnow,
     heavyDayCount,
     longestLull: longest,
+    longestStreak,
     holidays,
     holidayHits,
     holidayTotal: holidays.length,
@@ -192,12 +222,17 @@ function renderSummary(records) {
 
   const latestLast = byLastSnow.reduce((best, current) => {
     if (!best) return current;
-    return current.lastSnow > best.lastSnow ? current : best;
-  }, null);
+   return current.lastSnow > best.lastSnow ? current : best;
+ }, null);
 
   const longestDrought = records.reduce((best, current) => {
     if (!best) return current;
     return (current.longestLull?.length ?? 0) > (best.longestLull?.length ?? 0) ? current : best;
+  }, null);
+
+  const longestStreakRecord = records.reduce((best, current) => {
+    if (!best) return current;
+    return (current.longestStreak?.length ?? 0) > (best.longestStreak?.length ?? 0) ? current : best;
   }, null);
 
   const mostHeavyDays = records.reduce((best, current) => {
@@ -250,6 +285,18 @@ function renderSummary(records) {
       title: 'Longest Snow Drought',
       value: `${lull.length} day${lull.length === 1 ? '' : 's'}`,
       detail: range ? `${longestDrought.label} · ${range}` : longestDrought.label
+    });
+  }
+
+  if (longestStreakRecord && (longestStreakRecord.longestStreak?.length ?? 0) > 0) {
+    const streak = longestStreakRecord.longestStreak;
+    const range = streak.start && streak.end
+      ? `${formatDateLabel(streak.start)} → ${formatDateLabel(streak.end)}`
+      : '';
+    cards.push({
+      title: 'Longest Snow Streak',
+      value: `${streak.length} day${streak.length === 1 ? '' : 's'}`,
+      detail: range ? `${longestStreakRecord.label} · ${range}` : longestStreakRecord.label
     });
   }
 
@@ -307,6 +354,9 @@ function renderTable(records) {
     const longest = rec.longestLull?.length > 0
       ? `${rec.longestLull.length} day${rec.longestLull.length === 1 ? '' : 's'}${rec.longestLull.start && rec.longestLull.end ? ` (${formatDateLabel(rec.longestLull.start)} → ${formatDateLabel(rec.longestLull.end)})` : ''}`
       : '—';
+    const streak = rec.longestStreak?.length > 0
+      ? `${rec.longestStreak.length} day${rec.longestStreak.length === 1 ? '' : 's'}${rec.longestStreak.start && rec.longestStreak.end ? ` (${formatDateLabel(rec.longestStreak.start)} → ${formatDateLabel(rec.longestStreak.end)})` : ''}`
+      : '—';
 
     const holidayText = `${rec.holidayHits}/${rec.holidayTotal}` + (rec.allHolidaysSnowed ? ' ✓' : '');
 
@@ -314,6 +364,7 @@ function renderTable(records) {
       rec.label,
       rec.firstSnow ? formatDateLabel(rec.firstSnow) : '—',
       rec.lastSnow ? formatDateLabel(rec.lastSnow) : '—',
+      streak,
       longest,
       rec.heavyDayCount ? String(rec.heavyDayCount) : '0',
       holidayText

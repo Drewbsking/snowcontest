@@ -952,6 +952,11 @@ function populateSeasonDropdown() {
   if (lastSnowValueEl) lastSnowValueEl.textContent = '--';
   if (lastSnowNoteEl) lastSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
 
+  const streakValueEl = document.getElementById('snow-streak-value');
+  const streakNoteEl = document.getElementById('snow-streak-note');
+  if (streakValueEl) resetAnimatedNumber(streakValueEl);
+  if (streakNoteEl) streakNoteEl.textContent = 'Longest run of ≥0.1" days';
+
   const twoPlusValueEl = document.getElementById('two-plus-days-value');
   const twoPlusNoteEl = document.getElementById('two-plus-days-note');
   if (twoPlusValueEl) resetAnimatedNumber(twoPlusValueEl);
@@ -1082,6 +1087,11 @@ async function loadSeason(startYear) {
     const measurableThreshold = 0.1;
     const heavyThreshold = 2.0;
     let heavyDayCount = 0;
+    let streakLength = 0;
+    let streakStart = null;
+    let longestStreakLength = 0;
+    let longestStreakStart = null;
+    let longestStreakEnd = null;
     let largestDailyValue = null;
     let largestDailyDate = null;
     let firstSnowDay = null;
@@ -1108,10 +1118,26 @@ async function loadSeason(startYear) {
           lastSnowDay = day;
           sumMeasurableSnow += snowValue;
           countMeasurableDays += 1;
+          if (streakLength === 0) {
+            streakStart = day;
+          }
+          streakLength += 1;
+          if (streakLength > longestStreakLength) {
+            longestStreakLength = streakLength;
+            longestStreakStart = streakStart;
+            longestStreakEnd = day;
+          }
         }
         if (snowValue >= heavyThreshold) {
           heavyDayCount += 1;
         }
+        if (day && snowValue < measurableThreshold && streakLength > 0) {
+          streakLength = 0;
+          streakStart = null;
+        }
+      } else if (streakLength > 0) {
+        streakLength = 0;
+        streakStart = null;
       }
     });
 
@@ -1177,6 +1203,25 @@ async function loadSeason(startYear) {
       } else {
         lastSnowValueEl.textContent = '--';
         lastSnowNoteEl.textContent = 'Awaiting ≥0.1" snow';
+      }
+    }
+
+    const streakValueEl = document.getElementById('snow-streak-value');
+    const streakNoteEl = document.getElementById('snow-streak-note');
+    if (streakValueEl && streakNoteEl) {
+      if (longestStreakLength > 0) {
+        animateNumberText(streakValueEl, longestStreakLength, {
+          format: (val) => Math.round(val).toString(),
+          fallback: '--'
+        });
+        const startLabel = formatDateLabel(longestStreakStart);
+        const endLabel = formatDateLabel(longestStreakEnd);
+        streakNoteEl.textContent = startLabel && endLabel
+          ? `${startLabel} → ${endLabel}`
+          : 'Longest run of ≥0.1" days';
+      } else {
+        resetAnimatedNumber(streakValueEl);
+        streakNoteEl.textContent = 'Awaiting consecutive ≥0.1" snow days';
       }
     }
 
