@@ -24,7 +24,7 @@
     <a href="rules.html">Contest Rules</a>
     <a href="winners.html">Past Winners</a>
   </nav>
-</div>
+ </div>
 <!-- Contest CTA banner -->
 <div class="cta-banner" role="region" aria-label="Enter your snowfall contest guess">
   <div class="cta-inner">
@@ -36,14 +36,22 @@
   </div>
   <div class="cta-shadow" aria-hidden="true"></div>
 </div>
+<!-- Season picker banner -->
+<div class="season-banner" role="region" aria-label="Select contest season">
+  <div class="season-inner">
+    <div class="season-text">
+      <label class="season-title" for="seasonSelect">Select Season</label>
+      <div class="season-sub">Dec 1 → Mar 31 (contest) · Jul 1 → Jun 30 (year)</div>
+    </div>
+    <select id="seasonSelect" aria-label="Contest season"></select>
+  </div>
+  <div class="season-shadow" aria-hidden="true"></div>
+  
+</div>
 <div class="wrap">
   <!-- LEFT: Totals / Selector -->
   <section class="card" id="total-card">
     <div class="totals-grid">
-      <div class="total-box season-picker-box">
-        <label class="total-subhead" for="seasonSelect">Contest Season</label>
-        <select id="seasonSelect"></select>
-      </div>
       <div class="total-box">
         <div class="total-subhead">Contest Total</div>
         <div class="total-value" id="contest-total-value">--</div>
