@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Custom Date Range · RCOC Snowfall Contest</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+</head>
+<body>
+<div class="snow-layer" aria-hidden="true"></div>
+<div class="top-bar">
+  <div class="brand-block">
+    <img src="rcoc-logo.jpg" alt="RCOC logo" class="brand-logo" />
+    <div class="brand-text">
+      <span class="brand-title">RCOC Snowfall Contest Tracker</span>
+      <span class="brand-sub">White Lake 4E, MI</span>
+    </div>
+  </div>
+  <nav class="top-nav">
+    <a href="index.html">Dashboard</a>
+    <a href="custom-range.html" aria-current="page">Date Range</a>
+    <a href="records.html">Season Records</a>
+    <a href="rules.html">Contest Rules</a>
+    <a href="winners.html">Past Winners</a>
+  </nav>
+</div>
+<div class="wrap">
+  <section class="card" id="range-controls-card">
+    <div class="chart-card-header">
+      <span>Custom Date Range Explorer</span>
+      <span class="chart-sub">Pick two dates to chart daily snowfall and running totals.</span>
+    </div>
+    <form id="range-form" class="range-form" novalidate>
+      <div class="range-field">
+        <label for="range-start">Start date</label>
+        <input type="date" id="range-start" name="start" required />
+      </div>
+      <div class="range-field">
+        <label for="range-end">End date</label>
+        <input type="date" id="range-end" name="end" required />
+      </div>
+      <div class="range-actions">
+        <button type="submit" class="btn-primary">Load Range</button>
+        <button type="button" class="btn-secondary" id="range-reset">Reset</button>
+      </div>
+      <div class="range-message" id="range-message" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section class="card" id="range-summary-card">
+    <div class="chart-card-header">
+      <span>Range Summary</span>
+      <span class="chart-sub">Snowfall totals across the selected window.</span>
+    </div>
+    <div class="range-summary-grid">
+      <div class="range-summary-item">
+        <div class="range-summary-label">Total Snow</div>
+        <div class="range-summary-value" id="range-total">--</div>
+        <div class="range-summary-note" id="range-total-note">Awaiting selection</div>
+      </div>
+      <div class="range-summary-item">
+        <div class="range-summary-label">Measured Days</div>
+        <div class="range-summary-value" id="range-days">--</div>
+        <div class="range-summary-note" id="range-days-note">≥0.1" days in range</div>
+      </div>
+      <div class="range-summary-item">
+        <div class="range-summary-label">Daily Peak</div>
+        <div class="range-summary-value" id="range-peak">--</div>
+        <div class="range-summary-note" id="range-peak-note">No data yet</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="range-chart-card">
+    <div class="chart-card-header">
+      <span>Daily Snow vs Cumulative Total</span>
+      <span class="chart-sub">Bars show daily snowfall; the line tracks cumulative snowfall across the selected window.</span>
+      <div class="data-toolbar">
+        <button type="button" class="btn-link" id="range-export" disabled>Export CSV</button>
+        <span class="data-sep">·</span>
+        <span id="range-source" class="data-source">Awaiting selection</span>
+      </div>
+    </div>
+    <div class="chart-box range-chart-box">
+      <div class="loading-overlay" id="range-loading" hidden>
+        <div class="spinner"></div>
+        <div>Loading snowfall data…</div>
+      </div>
+      <div class="no-snow-message" id="range-empty">Select a date range to begin.</div>
+      <canvas id="rangeChart" aria-label="Daily snowfall bar chart and cumulative snowfall line chart" role="img"></canvas>
+    </div>
+  </section>
+</div>
+
+<script src="snow.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="custom-range.js" defer></script>
+<footer class="site-footer">
+  <div class="footer-wrap">
+    <span id="data-updated">Data updated —</span>
+    <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://github.com/Drewbsking/snowcontest" target="_blank" rel="noopener">Crafted by Andrew Bates</a>
+    <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://github.com/netbymatt/ws4kp" target="_blank" rel="noopener">
+      WeatherStar 4000+ by Matt Walsh
+    </a>
+    <span class="footer-sep">·</span>
+    <span class="footer-source">Powered by <a class="footer-link" href="https://data.rcc-acis.org/" target="_blank" rel="noopener">NOAA ACIS</a></span>
+    <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://www.weather.gov/dtx/supdata2" target="_blank" rel="noopener">DTX Snowfall Data</a>
+    <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://www.weather.gov/wrh/climate?wfo=dtx" target="_blank" rel="noopener">DTX Climate</a>
+  </div>
+</footer>
+</body>
+</html>
