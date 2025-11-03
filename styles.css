@@ -153,6 +153,68 @@ body {
   text-decoration: underline;
 }
 
+.cta-banner {
+  position: relative;
+  margin: 0 auto clamp(0.75rem, 1.8vw, 1.25rem);
+  max-width: var(--max-width);
+  padding: 0.1rem; /* for gradient ring */
+  border-radius: .9rem;
+  background: linear-gradient(135deg, rgba(56,189,248,0.9), rgba(59,130,246,0.6));
+}
+
+.cta-inner {
+  background: linear-gradient(135deg, rgba(15,23,42,0.9), rgba(15,23,42,0.88));
+  border: 1px solid rgba(56,189,248,0.45);
+  border-radius: .85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .85rem;
+  padding: .8rem 1rem;
+}
+
+.cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.cta-title {
+  font-size: clamp(1rem, 0.9rem + 1vw, 1.35rem);
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.cta-sub {
+  font-size: .8rem;
+  color: var(--text-dim);
+}
+
+.cta-button {
+  white-space: nowrap;
+}
+
+.cta-shadow {
+  position: absolute;
+  inset: -6px;
+  filter: blur(18px);
+  background: radial-gradient(80% 60% at 75% 50%, rgba(56,189,248,0.25), transparent 70%);
+  border-radius: 1.2rem;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 560px) {
+  .cta-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: .6rem;
+  }
+  .cta-button {
+    align-self: flex-start;
+  }
+}
+
 .wrap {
   max-width: var(--max-width);
   margin: 0 auto;
