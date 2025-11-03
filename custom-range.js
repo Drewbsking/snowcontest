@@ -71,6 +71,7 @@
   function setLoading(isLoading) {
     if (loadingOverlay) {
       loadingOverlay.hidden = !isLoading;
+      loadingOverlay.style.display = isLoading ? 'flex' : 'none';
     }
     if (isLoading && emptyStateEl) {
       emptyStateEl.style.display = 'none';
