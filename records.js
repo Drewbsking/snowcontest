@@ -26,6 +26,13 @@ function formatDateLabel(dateInput) {
   });
 }
 
+function formatInches(value) {
+  if (value == null || Number.isNaN(value)) return '--';
+  const rounded = Math.round(value * 10) / 10;
+  const str = rounded.toFixed(1);
+  return str.endsWith('.0') ? str.slice(0, -2) : str;
+}
+
 function parseISODate(dateStr) {
   if (!dateStr) return null;
   const date = new Date(`${dateStr}T00:00:00`);
@@ -92,6 +99,7 @@ function computeSeasonStats(json, startYear) {
   let streakLength = 0;
   let streakStart = null;
   let longestStreak = { length: 0, start: null, end: null };
+  let largestDaily = { value: null, date: null };
 
   daily.forEach((row) => {
     if (typeof row?.snow === 'number' && !Number.isNaN(row.snow) && row.snow >= HEAVY_DAY_THRESHOLD) {
@@ -99,6 +107,9 @@ function computeSeasonStats(json, startYear) {
     }
     const day = parseISODate(row?.date);
     const snow = typeof row?.snow === 'number' && !Number.isNaN(row.snow) ? row.snow : null;
+    if (snow != null && (largestDaily.value == null || snow > largestDaily.value)) {
+      largestDaily = { value: snow, date: day };
+    }
     if (snow != null && snow >= MEASURABLE_THRESHOLD) {
       if (streakLength === 0) {
         streakStart = day;
@@ -190,6 +201,7 @@ function computeSeasonStats(json, startYear) {
     heavyDayCount,
     longestLull: longest,
     longestStreak,
+    largestDaily,
     holidays,
     holidayHits,
     holidayTotal: holidays.length,
@@ -222,8 +234,8 @@ function renderSummary(records) {
 
   const latestLast = byLastSnow.reduce((best, current) => {
     if (!best) return current;
-   return current.lastSnow > best.lastSnow ? current : best;
- }, null);
+    return current.lastSnow > best.lastSnow ? current : best;
+  }, null);
 
   const longestDrought = records.reduce((best, current) => {
     if (!best) return current;
@@ -235,6 +247,14 @@ function renderSummary(records) {
     return (current.longestStreak?.length ?? 0) > (best.longestStreak?.length ?? 0) ? current : best;
   }, null);
 
+  const largestDailyRecord = records.reduce((best, current) => {
+    const currentVal = current.largestDaily?.value ?? null;
+    if (currentVal == null) return best;
+    if (!best) return current;
+    const bestVal = best.largestDaily?.value ?? null;
+    return bestVal == null || currentVal > bestVal ? current : best;
+  }, null);
+
   const mostHeavyDays = records.reduce((best, current) => {
     if (!best) return current;
     return current.heavyDayCount > best.heavyDayCount ? current : best;
@@ -244,36 +264,83 @@ function renderSummary(records) {
 
   const cards = [];
 
-  if (earliestFirst) {
-    cards.push({
+  const timelineEvents = [];
+  if (earliestFirst?.firstSnow) {
+    timelineEvents.push({
       title: 'Earliest First Snow',
-      value: formatDateLabel(earliestFirst.firstSnow) || '—',
-      detail: earliestFirst.label
+      date: earliestFirst.firstSnow,
+      season: earliestFirst.label,
+      type: 'earliest-first'
     });
   }
-
-  if (latestFirst) {
-    cards.push({
+  if (latestFirst?.firstSnow) {
+    timelineEvents.push({
       title: 'Latest First Snow',
-      value: formatDateLabel(latestFirst.firstSnow) || '—',
-      detail: latestFirst.label
+      date: latestFirst.firstSnow,
+      season: latestFirst.label,
+      type: 'latest-first'
     });
   }
-
-  if (earliestLast) {
-    cards.push({
+  if (earliestLast?.lastSnow) {
+    timelineEvents.push({
       title: 'Earliest Last Snow',
-      value: formatDateLabel(earliestLast.lastSnow) || '—',
-      detail: earliestLast.label
+      date: earliestLast.lastSnow,
+      season: earliestLast.label,
+      type: 'earliest-last'
+    });
+  }
+  if (latestLast?.lastSnow) {
+    timelineEvents.push({
+      title: 'Latest Last Snow',
+      date: latestLast.lastSnow,
+      season: latestLast.label,
+      type: 'latest-last'
     });
   }
 
-  if (latestLast) {
-    cards.push({
-      title: 'Latest Last Snow',
-      value: formatDateLabel(latestLast.lastSnow) || '—',
-      detail: latestLast.label
+  if (timelineEvents.length) {
+    const sortedEvents = timelineEvents.slice().sort((a, b) => a.date - b.date);
+    const timeline = document.createElement('div');
+    timeline.className = 'record-timeline';
+    const track = document.createElement('div');
+    track.className = 'timeline-track';
+    track.setAttribute('role', 'list');
+
+    sortedEvents.forEach((event) => {
+      const item = document.createElement('div');
+      item.className = `timeline-event ${event.type ? `is-${event.type}` : ''}`.trim();
+      item.setAttribute('role', 'listitem');
+      item.setAttribute('aria-label', `${event.title}: ${formatDateLabel(event.date)} (${event.season})`);
+
+      const dot = document.createElement('span');
+      dot.className = 'timeline-dot';
+
+      const textWrap = document.createElement('div');
+      textWrap.className = 'timeline-event-text';
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'timeline-event-label';
+      labelEl.textContent = event.title;
+
+      const dateEl = document.createElement('span');
+      dateEl.className = 'timeline-event-date';
+      dateEl.textContent = formatDateLabel(event.date);
+
+      const seasonEl = document.createElement('span');
+      seasonEl.className = 'timeline-event-season';
+      seasonEl.textContent = event.season;
+
+      textWrap.appendChild(labelEl);
+      textWrap.appendChild(dateEl);
+      textWrap.appendChild(seasonEl);
+
+      item.appendChild(dot);
+      item.appendChild(textWrap);
+      track.appendChild(item);
     });
+
+    timeline.appendChild(track);
+    summaryEl.appendChild(timeline);
   }
 
   if (longestDrought && (longestDrought.longestLull?.length ?? 0) > 0) {
@@ -297,6 +364,16 @@ function renderSummary(records) {
       title: 'Longest Snow Streak',
       value: `${streak.length} day${streak.length === 1 ? '' : 's'}`,
       detail: range ? `${longestStreakRecord.label} · ${range}` : longestStreakRecord.label
+    });
+  }
+
+  if (largestDailyRecord && largestDailyRecord.largestDaily?.value != null) {
+    const largest = largestDailyRecord.largestDaily;
+    const valueLabel = `${formatInches(largest.value)}"`;
+    cards.push({
+      title: 'Largest Daily Snowfall',
+      value: valueLabel,
+      detail: largest.date ? `${largestDailyRecord.label} · ${formatDateLabel(largest.date)}` : largestDailyRecord.label
     });
   }
 
@@ -357,6 +434,9 @@ function renderTable(records) {
     const streak = rec.longestStreak?.length > 0
       ? `${rec.longestStreak.length} day${rec.longestStreak.length === 1 ? '' : 's'}${rec.longestStreak.start && rec.longestStreak.end ? ` (${formatDateLabel(rec.longestStreak.start)} → ${formatDateLabel(rec.longestStreak.end)})` : ''}`
       : '—';
+    const largestDay = rec.largestDaily?.value != null
+      ? `${formatInches(rec.largestDaily.value)}"${rec.largestDaily.date ? ` (${formatDateLabel(rec.largestDaily.date)})` : ''}`
+      : '—';
 
     const holidayText = `${rec.holidayHits}/${rec.holidayTotal}` + (rec.allHolidaysSnowed ? ' ✓' : '');
 
@@ -366,6 +446,7 @@ function renderTable(records) {
       rec.lastSnow ? formatDateLabel(rec.lastSnow) : '—',
       streak,
       longest,
+      largestDay,
       rec.heavyDayCount ? String(rec.heavyDayCount) : '0',
       holidayText
     ];
