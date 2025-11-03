@@ -173,6 +173,23 @@
       { startYear: 2025, file: 'Guesses/2025-2026 RCOC Snow Contest(Sheet1).csv' }
     ];
 
+    // Reveal control for current season guesses
+    const GUESS_REVEAL_UTC = '2025-11-07T17:00:00Z'; // 12:00 PM ET
+    function isGuessRevealOpen(startYear) {
+      return startYear !== 2025 || Date.now() >= Date.parse(GUESS_REVEAL_UTC);
+    }
+    function getRevealLabelET() {
+      try {
+        return new Date(GUESS_REVEAL_UTC).toLocaleString(undefined, {
+          timeZone: 'America/New_York',
+          month: 'short', day: 'numeric', year: 'numeric',
+          hour: 'numeric', minute: '2-digit'
+        }) + ' ET';
+      } catch (e) {
+        return 'Nov 7, 2025 12:00 PM ET';
+      }
+    }
+
     function formatInches(value) {
       if (value == null || Number.isNaN(value)) return '--';
       const rounded = Math.round(value * 10) / 10;
@@ -394,10 +411,9 @@
       try {
         const results = [];
         for (const config of guessSheetConfigs) {
-          const [guesses, seasonData] = await Promise.all([
-            fetchGuessSheet(config),
-            fetchSeasonData(config.startYear)
-          ]);
+          const revealOpen = isGuessRevealOpen(config.startYear);
+          const seasonData = await fetchSeasonData(config.startYear);
+          const guesses = revealOpen ? await fetchGuessSheet(config) : [];
 
           const seasonStartIso = seasonData.season_start || seasonData.seasonal_start || seasonData.start_date;
           const seasonEndIso = seasonData.season_end || seasonData.seasonal_end || seasonData.end_date;
@@ -414,7 +430,7 @@
             seasonTotal = null;
           }
 
-          const seasonResult = seasonTotal != null
+          const seasonResult = (seasonTotal != null && revealOpen)
             ? pickAbsoluteClosestResult(guesses, seasonTotal)
             : { winners: [], margin: null };
 
@@ -432,6 +448,9 @@
               return '<span class="detail">Season totals unavailable for this season.</span>';
             }
             const totalLabel = seasonDone ? 'Final season total' : 'Season total so far';
+            if (!revealOpen) {
+              return `<span class="detail">Season leaders hidden until ${getRevealLabelET()}. ${totalLabel}: ${formatInches(seasonTotal)}"</span>`;
+            }
             if (!seasonResult.winners.length) {
               return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(seasonTotal)}"</span>`;
             }

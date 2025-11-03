@@ -28,6 +28,23 @@ const guessCache = new Map();
 const seasonDataCache = new Map();
 let currentResultsToken = 0;
 
+// Reveal control: hide current season guesses until noon ET on Nov 7, 2025
+const GUESS_REVEAL_UTC = '2025-11-07T17:00:00Z'; // 12:00 PM ET
+function isGuessRevealOpen(startYear) {
+  return startYear !== 2025 || Date.now() >= Date.parse(GUESS_REVEAL_UTC);
+}
+function getRevealLabelET() {
+  try {
+    return new Date(GUESS_REVEAL_UTC).toLocaleString(undefined, {
+      timeZone: 'America/New_York',
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit'
+    }) + ' ET';
+  } catch (_e) {
+    return 'Nov 7, 2025 12:00 PM ET';
+  }
+}
+
 const guessStatEls = {
   avgValue: document.getElementById('guess-avg-value'),
   avgNote: document.getElementById('guess-avg-note'),
@@ -855,32 +872,38 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     return;
   }
 
-  // Point the download link at the season's raw CSV, regardless of entries
+  // Point the download link at the season's raw CSV by default
   updateGuessCsvLink(parsedYear);
 
-  let guesses = guessCache.get(parsedYear);
-  if (!guesses) {
-    try {
-      guesses = await fetchGuessSheet(config);
-      guessCache.set(parsedYear, guesses);
-    } catch (err) {
-      console.error('Failed loading guesses for season', parsedYear, err);
-      if (token !== currentResultsToken) return;
-      seasonalEl.innerHTML = 'Unable to load guesses for this season.';
-      setGuessStatsMessage('Unable to load guess data.');
+  const revealOpen = isGuessRevealOpen(parsedYear);
+  let guesses = [];
+  if (revealOpen) {
+    guesses = guessCache.get(parsedYear);
+    if (!guesses) {
+      try {
+        guesses = await fetchGuessSheet(config);
+        guessCache.set(parsedYear, guesses);
+      } catch (err) {
+        console.error('Failed loading guesses for season', parsedYear, err);
+        if (token !== currentResultsToken) return;
+        seasonalEl.innerHTML = 'Unable to load guesses for this season.';
+        setGuessStatsMessage('Unable to load guess data.');
+        return;
+      }
+    }
+    if (token !== currentResultsToken) return;
+    if (!guesses.length) {
+      const msg = 'No guesses submitted yet.';
+      seasonalEl.innerHTML = msg;
+      setGuessStatsMessage('No guesses submitted yet.');
       return;
     }
+    setGuessStatsData(guesses, parsedYear);
+  } else {
+    // Hide guesses until reveal time
+    setGuessStatsMessage(`Guesses hidden until ${getRevealLabelET()}.`);
+    disableGuessCsvLink();
   }
-  if (token !== currentResultsToken) return;
-
-  if (!guesses.length) {
-    const msg = 'No guesses submitted yet.';
-    seasonalEl.innerHTML = msg;
-    setGuessStatsMessage('No guesses submitted yet.');
-    return;
-  }
-
-  setGuessStatsData(guesses, parsedYear);
 
   if (seasonDataOverride) {
     seasonDataCache.set(parsedYear, seasonDataOverride);
@@ -930,15 +953,20 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   } else if (seasonTotal == null) {
     seasonalMessage = 'Seasonal snowfall data is unavailable for this season.';
   } else {
-    const seasonalResult = pickAbsoluteClosestResult(guesses, seasonTotal);
-    if (!seasonalResult.winners.length) {
-      seasonalMessage = 'No leader could be determined.';
-    } else {
-      const names = seasonalResult.winners.map(formatGuesserDisplay).join(', ');
-      const marginLabel = describeMargin(seasonalResult.margin);
-      const label = seasonStage === 'done' ? 'Season winner' : 'Season leader';
+    if (!isGuessRevealOpen(parsedYear)) {
       const totalLabel = seasonStage === 'done' ? 'Final season total' : 'Season total so far';
-      seasonalMessage = `${label}${seasonalResult.winners.length > 1 ? 's' : ''}: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
+      seasonalMessage = `Season leaders hidden until ${getRevealLabelET()}. ${totalLabel}: ${formatInches(seasonTotal)}"`;
+    } else {
+      const seasonalResult = pickAbsoluteClosestResult(guesses, seasonTotal);
+      if (!seasonalResult.winners.length) {
+        seasonalMessage = 'No leader could be determined.';
+      } else {
+        const names = seasonalResult.winners.map(formatGuesserDisplay).join(', ');
+        const marginLabel = describeMargin(seasonalResult.margin);
+        const label = seasonStage === 'done' ? 'Season winner' : 'Season leader';
+        const totalLabel = seasonStage === 'done' ? 'Final season total' : 'Season total so far';
+        seasonalMessage = `${label}${seasonalResult.winners.length > 1 ? 's' : ''}: <span class="result-highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${marginLabel ? ` · ${marginLabel}` : ''}`;
+      }
     }
   }
   if (!seasonalMessage) {
