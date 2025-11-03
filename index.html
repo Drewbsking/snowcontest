@@ -36,12 +36,12 @@
   <div class="cta-shadow" aria-hidden="true"></div>
 </div>
 <!-- Season picker banner -->
-<div class="season-banner" role="region" aria-label="Select contest season">
+<div class="season-banner" role="region" aria-label="Select snow season">
   <div class="season-inner">
     <div class="season-text">
       <label class="season-title" for="seasonSelect">Select Season</label>
     </div>
-    <select id="seasonSelect" aria-label="Contest season"></select>
+    <select id="seasonSelect" aria-label="Snow season"></select>
   </div>
   <div class="season-shadow" aria-hidden="true"></div>
   
@@ -51,12 +51,7 @@
   <section class="card" id="total-card">
     <div class="totals-grid">
       <div class="total-box">
-        <div class="total-subhead">Old Truncated Season</div>
-        <div class="total-value" id="contest-total-value">--</div>
-        <div class="total-note">Dec&nbsp;1 → Mar&nbsp;31 snowfall</div>
-      </div>
-      <div class="total-box">
-        <div class="total-subhead">New Full Season</div>
+        <div class="total-subhead">Season Total</div>
         <div class="total-value" id="seasonal-total-value">--</div>
         <div class="total-note">Jul&nbsp;1 → Jun&nbsp;30 snowfall</div>
       </div>
@@ -109,9 +104,7 @@
       </a>.
       Missing days = "M". "T" = trace (&lt;0.1"), counted as 0.0 in totals.
       <br/><br/>
-      Bars = daily snowfall. Lines = cumulative contest total (Dec&nbsp;1 → Mar&nbsp;31) and
-      seasonal total (Jul&nbsp;1 → Jun&nbsp;30).
-      Shaded region marks the contest window.
+      Bars = daily snowfall. Line = cumulative seasonal total (Jul&nbsp;1 → Jun&nbsp;30).
     </div>
 
   </section>
@@ -121,20 +114,14 @@
     <div class="chart-card-header">
       <span>Season Leaders</span>
       <span class="chart-sub">
-        Old truncated season uses closest-without-going-over scoring for Dec&nbsp;2 → Mar&nbsp;31 snowfall.
-        New full season (Jul&nbsp;1 → Jun&nbsp;30) highlights long-form totals.
+        Closest-without-going-over scoring across the full snow year (Jul&nbsp;1 → Jun&nbsp;30).
       </span>
     </div>
 
 
     <div class="result-line">
-      <div class="result-subhead">Old Truncated Season · Dec&nbsp;2 → Mar&nbsp;31</div>
-      <div id="official-result-body" class="result-detail">Loading official standings…</div>
-    </div>
-
-    <div class="result-line">
-      <div class="result-subhead">New Full Season · Jul&nbsp;1 → Jun&nbsp;30</div>
-      <div id="seasonal-result-body" class="result-detail">Loading seasonal standings…</div>
+      <div class="result-subhead">Full Season · Jul&nbsp;1 → Jun&nbsp;30</div>
+      <div id="seasonal-result-body" class="result-detail">Loading season standings…</div>
     </div>
   </section>
 
@@ -144,9 +131,7 @@
       <span>Daily Snow vs Cumulative Total</span>
       <span class="chart-sub">
         Bars = daily snowfall (inches).
-        Lines = cumulative snowfall for the contest window (Dec&nbsp;1 → Mar&nbsp;31)
-        and the full snow year (Jul&nbsp;1 → Jun&nbsp;30).
-        Shaded area shows in-season contest days.
+        Line = cumulative snowfall across the snow year (Jul&nbsp;1 → Jun&nbsp;30).
       </span>
       <div class="data-toolbar">
         <a id="json-link" class="data-link" href="#" target="_blank" rel="noopener">View Raw JSON</a>

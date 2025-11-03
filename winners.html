@@ -150,8 +150,7 @@
     <header>
       <h1>Past Contest Winners</h1>
       <p>
-        Official contest winners are determined by the closest prediction without going over the Dec&nbsp;2 → Mar&nbsp;31 snowfall total.
-        Unofficial seasonal leaders apply the same scoring across the full Jul&nbsp;1 → Jun&nbsp;30 snow year for bragging rights.
+        Contest winners are determined by the closest prediction without going over the full-season snowfall total (Jul&nbsp;1 → Jun&nbsp;30).
       </p>
     </header>
 
@@ -388,19 +387,12 @@
       header.appendChild(status);
       card.appendChild(header);
 
-      const officialSection = document.createElement('div');
-      officialSection.innerHTML = `
-        <div class="section-title">Official Contest · Dec&nbsp;2 → Mar&nbsp;31</div>
-        <div class="result-line">${info.officialText}</div>
+      const seasonSection = document.createElement('div');
+      seasonSection.innerHTML = `
+        <div class="section-title">Season · ${escapeHtml(info.rangeText)}</div>
+        <div class="result-line">${info.seasonText}</div>
       `;
-      card.appendChild(officialSection);
-
-      const seasonalSection = document.createElement('div');
-      seasonalSection.innerHTML = `
-        <div class="section-title">Seasonal Total · Jul&nbsp;1 → Jun&nbsp;30</div>
-        <div class="result-line">${info.seasonalText}</div>
-      `;
-      card.appendChild(seasonalSection);
+      card.appendChild(seasonSection);
 
       container.appendChild(card);
     }
@@ -418,101 +410,65 @@
             fetchSeasonData(config.startYear)
           ]);
 
-          const contestStart = parseISODate(seasonData.contest_start || seasonData.start_date);
-          const contestEnd = parseISODate(seasonData.contest_end || seasonData.end_date);
-          const officialStart = contestStart ? new Date(contestStart.getTime()) : null;
-          if (officialStart) officialStart.setDate(officialStart.getDate() + 1);
-          const officialStartIso = officialStart
-            ? officialStart.toISOString().slice(0, 10)
-            : (seasonData.contest_start || seasonData.start_date);
-
-          const seasonalStartIso = seasonData.seasonal_start || seasonData.contest_start || seasonData.start_date;
-          const seasonalEndIso = seasonData.seasonal_end || seasonData.contest_end || seasonData.end_date;
+          const seasonStartIso = seasonData.season_start || seasonData.seasonal_start || seasonData.start_date;
+          const seasonEndIso = seasonData.season_end || seasonData.seasonal_end || seasonData.end_date;
 
           const today = new Date();
-          const contestDone = contestEnd && today > contestEnd;
-          const seasonalEnd = parseISODate(seasonalEndIso);
-          const seasonalDone = seasonalEnd && today > seasonalEnd;
+          const seasonEndDate = parseISODate(seasonEndIso);
+          const seasonDone = seasonEndDate && today > seasonEndDate;
 
-          const officialTotal = computeWindowTotal(
-            seasonData.daily,
-            officialStartIso,
-            seasonData.contest_end || seasonData.end_date
-          );
+          let seasonTotal = Number.isFinite(seasonData.seasonal_total_in)
+            ? seasonData.seasonal_total_in
+            : computeWindowTotal(seasonData.daily, seasonStartIso, seasonEndIso);
 
-          const seasonalTotal = computeWindowTotal(
-            seasonData.daily,
-            seasonalStartIso,
-            seasonalEndIso
-          );
-
-          const officialResult = Number.isFinite(officialTotal)
-            ? pickPriceIsRightResult(guesses, officialTotal)
-            : { winners: [], margin: null, allOver: false };
-          const seasonalResult = Number.isFinite(seasonalTotal)
-            ? pickPriceIsRightResult(guesses, seasonalTotal)
-            : { winners: [], margin: null, allOver: false };
-
-          const officialText = (() => {
-            if (!Number.isFinite(officialTotal)) {
-              return '<span class="detail">Totals unavailable for this season.</span>';
-            }
-            const totalLabel = contestDone ? 'Final old truncated total' : 'Old truncated total so far';
-            if (!officialResult.winners.length && !officialResult.allOver) {
-              return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(officialTotal)}"</span>`;
-            }
-            if (officialResult.allOver) {
-              const names = officialResult.winners.map(formatGuesser).join(', ');
-              const margin = describeMargin(officialResult.margin, true);
-              const context = contestDone
-                ? 'Old truncated season completed — no winner.'
-                : 'All guesses currently exceed the old truncated total.';
-              return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${margin ? ` · ${margin}` : ''}`;
-            }
-            const names = officialResult.winners.map(formatGuesser).join(', ');
-            const margin = describeMargin(officialResult.margin, false);
-            const label = contestDone ? 'Old truncated season winner' : 'Old truncated season leader';
-            return `${label}${officialResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(officialTotal)}"${margin ? ` · ${margin}` : ''}`;
-          })();
-
-          const seasonalText = (() => {
-            if (!Number.isFinite(seasonalTotal)) {
-              return '<span class="detail">Seasonal totals unavailable for this season.</span>';
-            }
-            const totalLabel = seasonalDone ? 'Final new full season total' : 'New full season total so far';
-            if (!seasonalResult.winners.length && !seasonalResult.allOver) {
-              return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(seasonalTotal)}"</span>`;
-            }
-            if (seasonalResult.allOver) {
-              const names = seasonalResult.winners.map(formatGuesser).join(', ');
-              const margin = describeMargin(seasonalResult.margin, true);
-              const context = seasonalDone
-                ? 'Season completed — no new full season winner.'
-                : 'All guesses currently exceed the new full season total.';
-              return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${margin ? ` · ${margin}` : ''}`;
-            }
-            const names = seasonalResult.winners.map(formatGuesser).join(', ');
-            const margin = describeMargin(seasonalResult.margin, false);
-            const label = seasonalDone ? 'New full season winner' : 'New full season leader';
-            return `${label}${seasonalResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonalTotal)}"${margin ? ` · ${margin}` : ''}`;
-          })();
-
-          let statusText = '';
-          if (contestDone && seasonalDone) {
-            statusText = 'Contest and snow year completed (' + formatDate(seasonalEnd) + ').';
-          } else if (!contestDone && seasonalDone) {
-            statusText = 'Seasonal totals finalized; contest still in progress.';
-          } else if (contestDone) {
-            statusText = 'Contest completed (' + formatDate(contestEnd) + '); seasonal totals still accumulating.';
-          } else {
-            statusText = 'Season in progress.';
+          if (!Number.isFinite(seasonTotal)) {
+            seasonTotal = null;
           }
+
+          const seasonResult = seasonTotal != null
+            ? pickPriceIsRightResult(guesses, seasonTotal)
+            : { winners: [], margin: null, allOver: false };
+
+          const rangeText = (() => {
+            const start = parseISODate(seasonStartIso);
+            const end = parseISODate(seasonEndIso);
+            if (start && end) {
+              return formatDate(start) + ' → ' + formatDate(end);
+            }
+            return 'Jul 1 → Jun 30';
+          })();
+
+          const seasonText = (() => {
+            if (seasonTotal == null) {
+              return '<span class="detail">Season totals unavailable for this season.</span>';
+            }
+            const totalLabel = seasonDone ? 'Final season total' : 'Season total so far';
+            if (!seasonResult.winners.length && !seasonResult.allOver) {
+              return `<span class="detail">No qualifying guesses recorded. ${totalLabel}: ${formatInches(seasonTotal)}"</span>`;
+            }
+            if (seasonResult.allOver) {
+              const names = seasonResult.winners.map(formatGuesser).join(', ');
+              const margin = describeMargin(seasonResult.margin, true);
+              const context = seasonDone
+                ? 'Season completed — no qualifying winner.'
+                : 'All guesses currently exceed the season total.';
+              return `${context} Closest over guess: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${margin ? ` · ${margin}` : ''}`;
+            }
+            const names = seasonResult.winners.map(formatGuesser).join(', ');
+            const margin = describeMargin(seasonResult.margin, false);
+            const label = seasonDone ? 'Season winner' : 'Season leader';
+            return `${label}${seasonResult.winners.length > 1 ? 's' : ''}: <span class="highlight">${names}</span> · ${totalLabel}: ${formatInches(seasonTotal)}"${margin ? ` · ${margin}` : ''}`;
+          })();
+
+          const statusText = seasonDone
+            ? 'Season completed (' + formatDate(seasonEndDate) + ').'
+            : 'Season in progress.';
 
           results.push({
             seasonLabel: seasonData.season_label || `${config.startYear}-${config.startYear + 1}`,
             statusText,
-            officialText,
-            seasonalText,
+            seasonText,
+            rangeText,
             startYear: config.startYear
           });
         }
