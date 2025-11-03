@@ -394,6 +394,11 @@ function renderHolidayGuessChart(entries, startYear) {
     });
   });
 
+  // Convert to percentages per holiday
+  const totals = yesCounts.map((y, i) => y + noCounts[i]);
+  const yesPct = yesCounts.map((y, i) => (totals[i] > 0 ? Math.round((y / totals[i]) * 100) : 0));
+  const noPct = noCounts.map((n, i) => (totals[i] > 0 ? Math.round((n / totals[i]) * 100) : 0));
+
   const ctx = canvas.getContext('2d');
   holidayGuessChart = new Chart(ctx, {
     type: 'bar',
@@ -402,7 +407,7 @@ function renderHolidayGuessChart(entries, startYear) {
       datasets: [
         {
           label: 'Yes',
-          data: yesCounts,
+          data: yesPct,
           backgroundColor: 'rgba(16,185,129,0.45)',
           borderColor: 'rgba(16,185,129,0.8)',
           borderWidth: 1,
@@ -411,7 +416,7 @@ function renderHolidayGuessChart(entries, startYear) {
         },
         {
           label: 'No',
-          data: noCounts,
+          data: noPct,
           backgroundColor: 'rgba(248,113,113,0.45)',
           borderColor: 'rgba(248,113,113,0.8)',
           borderWidth: 1,
@@ -432,8 +437,13 @@ function renderHolidayGuessChart(entries, startYear) {
         },
         y: {
           beginAtZero: true,
+          max: 100,
           grid: { color: 'rgba(51,65,85,0.3)' },
-          ticks: { precision: 0, color: 'rgba(148,163,184,0.95)' }
+          ticks: {
+            precision: 0,
+            color: 'rgba(148,163,184,0.95)',
+            callback: (val) => `${val}%`
+          }
         }
       },
       plugins: {
@@ -441,7 +451,14 @@ function renderHolidayGuessChart(entries, startYear) {
         tooltip: {
           callbacks: {
             title: (items) => items[0]?.label ?? '',
-            label: (item) => `${item.dataset.label}: ${item.parsed.y}`
+            label: (ctx) => {
+              const i = ctx.dataIndex;
+              const isYes = ctx.dataset.label === 'Yes';
+              const count = isYes ? yesCounts[i] : noCounts[i];
+              const total = totals[i] || 0;
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+              return `${ctx.dataset.label}: ${pct}% (${count}/${total})`;
+            }
           }
         }
       }
