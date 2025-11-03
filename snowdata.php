@@ -155,8 +155,8 @@ foreach ($stnData['data'] as $row) {
 $daily = [];
 $seasonalCum = 0.0;
 
-$cursor = new DateTimeImmutable($SEASONAL_START_DATE);
-$seasonEndDt = new DateTimeImmutable($SEASONAL_END_DATE);
+$cursor = new DateTimeImmutable($SEASON_START_DATE);
+$seasonEndDt = new DateTimeImmutable($SEASON_END_DATE);
 
 for ($dt = $cursor; $dt <= $seasonEndDt; $dt = $dt->modify('+1 day')) {
     $date = $dt->format('Y-m-d');
