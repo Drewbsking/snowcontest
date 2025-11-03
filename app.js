@@ -1,6 +1,7 @@
 let chartRef = null;
 let currentController = null; // to cancel in-flight fetches
 let guessHistogramChart = null;
+let holidayGuessChart = null;
 
 function setLoading(isLoading) {
   const overlay = document.getElementById('loading-overlay');
@@ -202,6 +203,7 @@ function setGuessStatsMessage(message) {
   resetAnimatedNumber(guessStatEls.highValue);
   guessStatEls.highNote.textContent = message;
   renderGuessHistogram([]);
+  renderHolidayGuessChart([], null);
 }
 
 function setGuessStatsData(guesses, startYear) {
@@ -247,6 +249,7 @@ function setGuessStatsData(guesses, startYear) {
   guessStatEls.highNote.textContent = highNames === '—' ? '—' : `by ${highNames}`;
 
   renderGuessHistogram(valid);
+  renderHolidayGuessChart(valid, startYear);
   updateGuessCsvLink(startYear);
 }
 
@@ -360,6 +363,85 @@ function renderGuessHistogram(entries) {
           callbacks: {
             title: (items) => items[0]?.label ?? '',
             label: (item) => `${item.parsed.y} guess${item.parsed.y === 1 ? '' : 'es'}`
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderHolidayGuessChart(entries, startYear) {
+  const canvas = document.getElementById('holidayGuessChart');
+  if (!canvas) return;
+  if (holidayGuessChart) {
+    holidayGuessChart.destroy();
+    holidayGuessChart = null;
+  }
+  if (!Array.isArray(entries) || !entries.length) return;
+
+  const holidays = getHolidayListForSeason(parseInt(startYear, 10));
+  const labels = holidays.map(h => h.label);
+  const yesCounts = new Array(labels.length).fill(0);
+  const noCounts = new Array(labels.length).fill(0);
+
+  entries.forEach(entry => {
+    const h = entry.holidays || {};
+    holidays.forEach((holiday, idx) => {
+      const key = holiday.key;
+      const val = h[key];
+      if (val === true) yesCounts[idx] += 1;
+      else if (val === false) noCounts[idx] += 1;
+    });
+  });
+
+  const ctx = canvas.getContext('2d');
+  holidayGuessChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Yes',
+          data: yesCounts,
+          backgroundColor: 'rgba(16,185,129,0.45)',
+          borderColor: 'rgba(16,185,129,0.8)',
+          borderWidth: 1,
+          borderRadius: 4,
+          maxBarThickness: 36
+        },
+        {
+          label: 'No',
+          data: noCounts,
+          backgroundColor: 'rgba(248,113,113,0.45)',
+          borderColor: 'rgba(248,113,113,0.8)',
+          borderWidth: 1,
+          borderRadius: 4,
+          maxBarThickness: 36
+        }
+      ]
+    },
+    options: {
+      animation: { duration: 900, easing: 'easeOutQuart' },
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          stacked: false,
+          grid: { color: 'rgba(51,65,85,0.35)' },
+          ticks: { color: 'rgba(148,163,184,0.95)', maxRotation: 0, autoSkip: false, font: { size: 11 } }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(51,65,85,0.3)' },
+          ticks: { precision: 0, color: 'rgba(148,163,184,0.95)' }
+        }
+      },
+      plugins: {
+        legend: { display: true },
+        tooltip: {
+          callbacks: {
+            title: (items) => items[0]?.label ?? '',
+            label: (item) => `${item.dataset.label}: ${item.parsed.y}`
           }
         }
       }
@@ -639,6 +721,24 @@ async function fetchGuessSheet(config) {
     h === 'snowguess' || h === 'totalguess'
   );
 
+  // Holiday Yes/No columns
+  const columnIndexFor = (pred) => normalized.findIndex(pred);
+  const holidayColIdx = {
+    thanksgiving: columnIndexFor(h => h.includes('thanksgiving')),
+    christmas: columnIndexFor(h => h.includes('christmas')),
+    newyear: columnIndexFor(h => h.includes('newyear')), // matches 'newyearsday'
+    mlk: columnIndexFor(h => h.includes('mlk')),
+    presidents: columnIndexFor(h => h.includes('presidents'))
+  };
+  const parseYesNo = (val) => {
+    if (val == null) return null;
+    const s = String(val).trim().toLowerCase();
+    if (!s) return null;
+    if (s === 'yes' || s === 'y' || s === 'true' || s === '1') return true;
+    if (s === 'no' || s === 'n' || s === 'false' || s === '0') return false;
+    return null;
+  };
+
   return rows.slice(1).map(rawRow => {
     const get = (idx) => (idx >= 0 && idx < rawRow.length ? rawRow[idx] : null);
     const rawAlias = get(aliasIdx);
@@ -659,7 +759,14 @@ async function fetchGuessSheet(config) {
     return {
       name,
       dept: rawDept == null ? '' : String(rawDept).trim(),
-      guess: guessVal
+      guess: guessVal,
+      holidays: {
+        thanksgiving: parseYesNo(get(holidayColIdx.thanksgiving)),
+        christmas: parseYesNo(get(holidayColIdx.christmas)),
+        newyear: parseYesNo(get(holidayColIdx.newyear)),
+        mlk: parseYesNo(get(holidayColIdx.mlk)),
+        presidents: parseYesNo(get(holidayColIdx.presidents))
+      }
     };
   }).filter(entry => entry.name && entry.guess != null);
 }

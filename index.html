@@ -51,6 +51,11 @@
   <!-- LEFT: Totals / Selector -->
   <section class="card" id="total-card">
     <div class="totals-grid">
+      <div class="total-box" id="holiday-snow-box">
+        <div class="total-subhead">Holiday Snow</div>
+        <div class="holiday-badges" id="holiday-badges" aria-live="polite"></div>
+        <div class="total-note" id="holiday-note">Measurable = ≥0.1" on listed holidays</div>
+      </div>
       <div class="total-box">
         <div class="total-subhead">Season Total</div>
         <div class="total-value" id="seasonal-total-value">--</div>
@@ -90,11 +95,6 @@
         <div class="total-subhead">Last Snowfall</div>
         <div class="total-value" id="last-snow-value">--</div>
         <div class="total-note" id="last-snow-note">Awaiting ≥0.1" snow</div>
-      </div>
-      <div class="total-box" id="holiday-snow-box">
-        <div class="total-subhead">Holiday Snow</div>
-        <div class="holiday-badges" id="holiday-badges" aria-live="polite"></div>
-        <div class="total-note" id="holiday-note">Measurable = ≥0.1" on listed holidays</div>
       </div>
     </div>
 
@@ -189,6 +189,13 @@
 
     <div class="guess-chart-box">
       <canvas id="guessHistogram" aria-label="Guess distribution histogram" role="img"></canvas>
+    </div>
+    <div class="chart-card-header">
+      <span>Holiday Guess Consensus</span>
+      <span class="chart-sub">Yes/No calls per holiday</span>
+    </div>
+    <div class="guess-chart-box">
+      <canvas id="holidayGuessChart" aria-label="Holiday guess Yes/No chart" role="img"></canvas>
     </div>
   </section>
 
