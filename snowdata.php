@@ -76,13 +76,41 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECO
         && $hasDailyFields;
 
     if ($hasNewFields) {
+        // Ensure back-compat keys even when serving cached data
+        $upgrade = function($payload) use ($SEASON_START_DATE, $SEASON_END_DATE) {
+            if (!$payload) return $payload;
+            // Add/normalize daily contest_cum mirroring seasonal_cum
+            if (isset($payload['daily']) && is_array($payload['daily'])) {
+                foreach ($payload['daily'] as $i => $row) {
+                    $seasonalCum = $row['seasonal_cum'] ?? null;
+                    if (!array_key_exists('contest_cum', $row)) {
+                        $payload['daily'][$i]['contest_cum'] = $seasonalCum;
+                    }
+                }
+            }
+            // Add top-level aliases
+            $seasonTotal = $payload['seasonal_total_in'] ?? null;
+            $payload['season_start'] = $payload['season_start'] ?? $SEASON_START_DATE;
+            $payload['season_end']   = $payload['season_end']   ?? $SEASON_END_DATE;
+            $payload['start_date']   = $payload['start_date']   ?? $payload['season_start'];
+            $payload['end_date']     = $payload['end_date']     ?? $payload['season_end'];
+            $payload['total_snow_in'] = $payload['total_snow_in'] ?? $seasonTotal;
+            $payload['contest_start'] = $payload['contest_start'] ?? $payload['season_start'];
+            $payload['contest_end']   = $payload['contest_end']   ?? $payload['season_end'];
+            $payload['contest_total_snow_in'] = $payload['contest_total_snow_in'] ?? $seasonTotal;
+            $payload['seasonal_start'] = $payload['seasonal_start'] ?? $payload['season_start'];
+            $payload['seasonal_end']   = $payload['seasonal_end']   ?? $payload['season_end'];
+            return $payload;
+        };
+
         if ($wantCsv && $cached) {
             // stream CSV from cached JSON
             $fn = 'snow_' . $startYear . '.csv';
             header('Content-Disposition: attachment; filename=' . $fn);
             $out = fopen('php://output', 'w');
             fputcsv($out, ['date','snow','seasonal_cum']);
-            foreach (($cached['daily'] ?? []) as $row) {
+            $payload = $upgrade($cached);
+            foreach (($payload['daily'] ?? []) as $row) {
                 fputcsv($out, [
                     $row['date'] ?? '',
                     is_null($row['snow'] ?? null) ? '' : $row['snow'],
@@ -92,7 +120,8 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECO
             fclose($out);
             exit;
         } else {
-            echo $cachedRaw;
+            $payload = $upgrade($cached);
+            echo json_encode($payload);
             exit;
         }
     }
@@ -177,6 +206,8 @@ for ($dt = $cursor; $dt <= $seasonEndDt; $dt = $dt->modify('+1 day')) {
     $daily[] = [
         'date'         => $date,
         'snow'         => $snowIn,
+        // Back-compat: keep both keys; contest_cum mirrors seasonal_cum (full-season only)
+        'contest_cum'  => $seasonalCum,
         'seasonal_cum' => $seasonalCum
     ];
 }
@@ -188,9 +219,19 @@ $payload = [
     'station_name'   => $STATION_NAME,
     'station_sid'    => $STATION_SID,
     'season_label'   => $SEASON_LABEL,
+    // New canonical keys (full-season)
     'season_start'   => $SEASON_START_DATE,
     'season_end'     => $SEASON_END_DATE,
     'seasonal_total_in' => $seasonalTotal,
+    // Back-compat aliases and fields so existing tools keep working
+    'start_date'     => $SEASON_START_DATE,
+    'end_date'       => $SEASON_END_DATE,
+    'total_snow_in'  => $seasonalTotal,
+    'contest_start'  => $SEASON_START_DATE,
+    'contest_end'    => $SEASON_END_DATE,
+    'contest_total_snow_in' => $seasonalTotal,
+    'seasonal_start' => $SEASON_START_DATE,
+    'seasonal_end'   => $SEASON_END_DATE,
     'daily'          => $daily
 ];
 
