@@ -1,0 +1,396 @@
+const SEASON_START_YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025];
+const MEASURABLE_THRESHOLD = 0.1;
+const HEAVY_DAY_THRESHOLD = 2.0;
+
+const summaryEl = document.getElementById('record-summary');
+const loadingEl = document.getElementById('records-loading');
+const tableBodyEl = document.querySelector('#season-record-table tbody');
+const footerUpdatedEl = document.getElementById('data-updated');
+
+function seasonLabel(year) {
+  return `${year}-${year + 1}`;
+}
+
+function formatDateLabel(dateInput) {
+  if (!dateInput) return '';
+  const date = typeof dateInput === 'string'
+    ? new Date(`${dateInput}T00:00:00`)
+    : dateInput instanceof Date
+      ? dateInput
+      : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function parseISODate(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(`${dateStr}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getNthWeekdayOfMonth(year, month1to12, weekday0to6, nth) {
+  const firstOfMonth = new Date(year, month1to12 - 1, 1);
+  const firstWeekday = firstOfMonth.getDay();
+  const offset = (7 + weekday0to6 - firstWeekday) % 7;
+  const day = 1 + offset + (nth - 1) * 7;
+  const candidate = new Date(year, month1to12 - 1, day);
+  if (candidate.getMonth() !== month1to12 - 1) return null;
+  return candidate;
+}
+
+function getHolidayListForSeason(startYear) {
+  const nextYear = startYear + 1;
+  return [
+    { key: 'thanksgiving', label: 'Thanksgiving', date: getNthWeekdayOfMonth(startYear, 11, 4, 4) },
+    { key: 'christmas', label: 'Christmas', date: new Date(startYear, 11, 25) },
+    { key: 'newyear', label: "New Year’s Day", date: new Date(nextYear, 0, 1) },
+    { key: 'mlk', label: 'MLK Day', date: getNthWeekdayOfMonth(nextYear, 1, 1, 3) },
+    { key: 'presidents', label: "Presidents Day", date: getNthWeekdayOfMonth(nextYear, 2, 1, 3) }
+  ].map((holiday) => ({
+    ...holiday,
+    iso: holiday.date ? holiday.date.toISOString().slice(0, 10) : null
+  }));
+}
+
+function determineLastDataDate(dailyRows) {
+  if (!Array.isArray(dailyRows)) return null;
+  for (let i = dailyRows.length - 1; i >= 0; i -= 1) {
+    const row = dailyRows[i];
+    if (!row) continue;
+    const dateStr = row.date;
+    const snowVal = row.snow;
+    if (dateStr && (snowVal !== null && snowVal !== 'M')) {
+      const parsed = parseISODate(dateStr);
+      if (parsed) return parsed;
+    }
+  }
+  return null;
+}
+
+function computeSeasonStats(json, startYear) {
+  const daily = Array.isArray(json?.daily) ? json.daily : [];
+  const label = seasonLabel(startYear);
+
+  const firstIndex = daily.findIndex((row) => typeof row?.snow === 'number' && !Number.isNaN(row.snow) && row.snow >= MEASURABLE_THRESHOLD);
+  let lastIndex = -1;
+  for (let i = daily.length - 1; i >= 0; i -= 1) {
+    const row = daily[i];
+    if (typeof row?.snow === 'number' && !Number.isNaN(row.snow) && row.snow >= MEASURABLE_THRESHOLD) {
+      lastIndex = i;
+      break;
+    }
+  }
+
+  const firstSnow = firstIndex >= 0 ? parseISODate(daily[firstIndex].date) : null;
+  const lastSnow = lastIndex >= 0 ? parseISODate(daily[lastIndex].date) : null;
+
+  let heavyDayCount = 0;
+  daily.forEach((row) => {
+    if (typeof row?.snow === 'number' && !Number.isNaN(row.snow) && row.snow >= HEAVY_DAY_THRESHOLD) {
+      heavyDayCount += 1;
+    }
+  });
+
+  let longest = { length: 0, start: null, end: null };
+  if (firstIndex >= 0 && lastIndex >= firstIndex) {
+    let streakStart = null;
+    let streakEnd = null;
+    let streakLength = 0;
+
+    const finalize = () => {
+      if (streakLength > longest.length) {
+        longest = {
+          length: streakLength,
+          start: streakStart,
+          end: streakEnd
+        };
+      }
+      streakStart = null;
+      streakEnd = null;
+      streakLength = 0;
+    };
+
+    for (let i = firstIndex; i <= lastIndex; i += 1) {
+      const row = daily[i];
+      const snow = row?.snow;
+      const day = parseISODate(row?.date);
+      const hasNumber = typeof snow === 'number' && !Number.isNaN(snow);
+      if (!hasNumber) {
+        finalize();
+        continue;
+      }
+      if (snow < MEASURABLE_THRESHOLD) {
+        if (!streakStart) streakStart = day;
+        streakEnd = day;
+        streakLength += 1;
+      } else {
+        finalize();
+      }
+    }
+    finalize();
+  }
+
+  const holidays = getHolidayListForSeason(startYear).map((holiday) => {
+    let amount = null;
+    let measurable = false;
+    if (holiday.iso) {
+      const row = daily.find((entry) => entry?.date === holiday.iso);
+      if (row && typeof row.snow === 'number' && !Number.isNaN(row.snow)) {
+        amount = row.snow;
+        measurable = row.snow >= MEASURABLE_THRESHOLD;
+      }
+    }
+    return {
+      ...holiday,
+      amount,
+      measurable
+    };
+  });
+
+  const holidayHits = holidays.reduce((acc, holiday) => acc + (holiday.measurable ? 1 : 0), 0);
+
+  return {
+    startYear,
+    label,
+    firstSnow,
+    lastSnow,
+    heavyDayCount,
+    longestLull: longest,
+    holidays,
+    holidayHits,
+    holidayTotal: holidays.length,
+    allHolidaysSnowed: holidays.length > 0 && holidayHits === holidays.length,
+    dataLastUpdated: determineLastDataDate(daily)
+  };
+}
+
+function renderSummary(records) {
+  if (!summaryEl) return;
+  summaryEl.innerHTML = '';
+
+  const byFirstSnow = records.filter((rec) => rec.firstSnow instanceof Date);
+  const byLastSnow = records.filter((rec) => rec.lastSnow instanceof Date);
+
+  const earliestFirst = byFirstSnow.reduce((best, current) => {
+    if (!best) return current;
+    return current.firstSnow < best.firstSnow ? current : best;
+  }, null);
+
+  const latestFirst = byFirstSnow.reduce((best, current) => {
+    if (!best) return current;
+    return current.firstSnow > best.firstSnow ? current : best;
+  }, null);
+
+  const earliestLast = byLastSnow.reduce((best, current) => {
+    if (!best) return current;
+    return current.lastSnow < best.lastSnow ? current : best;
+  }, null);
+
+  const latestLast = byLastSnow.reduce((best, current) => {
+    if (!best) return current;
+    return current.lastSnow > best.lastSnow ? current : best;
+  }, null);
+
+  const longestDrought = records.reduce((best, current) => {
+    if (!best) return current;
+    return (current.longestLull?.length ?? 0) > (best.longestLull?.length ?? 0) ? current : best;
+  }, null);
+
+  const mostHeavyDays = records.reduce((best, current) => {
+    if (!best) return current;
+    return current.heavyDayCount > best.heavyDayCount ? current : best;
+  }, null);
+
+  const cleanSweepSeasons = records.filter((rec) => rec.allHolidaysSnowed);
+
+  const cards = [];
+
+  if (earliestFirst) {
+    cards.push({
+      title: 'Earliest First Snow',
+      value: formatDateLabel(earliestFirst.firstSnow) || '—',
+      detail: earliestFirst.label
+    });
+  }
+
+  if (latestFirst) {
+    cards.push({
+      title: 'Latest First Snow',
+      value: formatDateLabel(latestFirst.firstSnow) || '—',
+      detail: latestFirst.label
+    });
+  }
+
+  if (earliestLast) {
+    cards.push({
+      title: 'Earliest Last Snow',
+      value: formatDateLabel(earliestLast.lastSnow) || '—',
+      detail: earliestLast.label
+    });
+  }
+
+  if (latestLast) {
+    cards.push({
+      title: 'Latest Last Snow',
+      value: formatDateLabel(latestLast.lastSnow) || '—',
+      detail: latestLast.label
+    });
+  }
+
+  if (longestDrought && (longestDrought.longestLull?.length ?? 0) > 0) {
+    const lull = longestDrought.longestLull;
+    const range = lull.start && lull.end
+      ? `${formatDateLabel(lull.start)} → ${formatDateLabel(lull.end)}`
+      : '';
+    cards.push({
+      title: 'Longest Snow Drought',
+      value: `${lull.length} day${lull.length === 1 ? '' : 's'}`,
+      detail: range ? `${longestDrought.label} · ${range}` : longestDrought.label
+    });
+  }
+
+  if (mostHeavyDays) {
+    cards.push({
+      title: 'Most 2+" Days',
+      value: `${mostHeavyDays.heavyDayCount}`,
+      detail: mostHeavyDays.label
+    });
+  }
+
+  if (cleanSweepSeasons.length) {
+    cards.push({
+      title: 'Holiday Clean Sweep',
+      value: `${cleanSweepSeasons.length} season${cleanSweepSeasons.length === 1 ? '' : 's'}`,
+      detail: cleanSweepSeasons.map((rec) => rec.label).join(' · ')
+    });
+  } else {
+    cards.push({
+      title: 'Holiday Clean Sweep',
+      value: 'None yet',
+      detail: 'Awaiting a season with measurable snow on every holiday.'
+    });
+  }
+
+  cards.forEach((card) => {
+    const item = document.createElement('div');
+    item.className = 'record-summary-item';
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'record-label';
+    labelDiv.textContent = card.title;
+    const valueDiv = document.createElement('div');
+    valueDiv.className = 'record-value';
+    valueDiv.textContent = card.value;
+    item.appendChild(labelDiv);
+    item.appendChild(valueDiv);
+    if (card.detail) {
+      const detailDiv = document.createElement('div');
+      detailDiv.className = 'record-detail';
+      detailDiv.textContent = card.detail;
+      item.appendChild(detailDiv);
+    }
+    summaryEl.appendChild(item);
+  });
+}
+
+function renderTable(records) {
+  if (!tableBodyEl) return;
+  tableBodyEl.innerHTML = '';
+  const sorted = [...records].sort((a, b) => b.startYear - a.startYear);
+
+  sorted.forEach((rec) => {
+    const row = document.createElement('tr');
+
+    const longest = rec.longestLull?.length > 0
+      ? `${rec.longestLull.length} day${rec.longestLull.length === 1 ? '' : 's'}${rec.longestLull.start && rec.longestLull.end ? ` (${formatDateLabel(rec.longestLull.start)} → ${formatDateLabel(rec.longestLull.end)})` : ''}`
+      : '—';
+
+    const holidayText = `${rec.holidayHits}/${rec.holidayTotal}` + (rec.allHolidaysSnowed ? ' ✓' : '');
+
+    const cells = [
+      rec.label,
+      rec.firstSnow ? formatDateLabel(rec.firstSnow) : '—',
+      rec.lastSnow ? formatDateLabel(rec.lastSnow) : '—',
+      longest,
+      rec.heavyDayCount ? String(rec.heavyDayCount) : '0',
+      holidayText
+    ];
+
+    cells.forEach((text) => {
+      const cell = document.createElement('td');
+      cell.textContent = text;
+      row.appendChild(cell);
+    });
+
+    tableBodyEl.appendChild(row);
+  });
+}
+
+async function fetchSeasonData(startYear) {
+  const res = await fetch(`snowdata.php?startYear=${encodeURIComponent(startYear)}`);
+  if (!res.ok) {
+    throw new Error(`Failed to load season ${startYear}`);
+  }
+  const json = await res.json();
+  if (json.error) {
+    throw new Error(json.error);
+  }
+  return json;
+}
+
+async function initRecords() {
+  try {
+    const fetchPromises = SEASON_START_YEARS.map((year) => fetchSeasonData(year)
+      .then((json) => computeSeasonStats(json, year))
+      .catch((err) => {
+        console.error('Failed to compute stats for season', year, err);
+        return null;
+      }));
+
+    const results = await Promise.all(fetchPromises);
+    const records = results.filter(Boolean);
+
+    if (!records.length) {
+      if (loadingEl) {
+        loadingEl.textContent = 'Unable to load season records right now.';
+      }
+      return;
+    }
+
+    if (loadingEl) {
+      loadingEl.hidden = true;
+    }
+    if (summaryEl) {
+      summaryEl.hidden = false;
+    }
+
+    renderSummary(records);
+    renderTable(records);
+
+    if (footerUpdatedEl) {
+      const latestDate = records.reduce((best, rec) => {
+        if (!rec.dataLastUpdated) return best;
+        if (!best) return rec.dataLastUpdated;
+        return rec.dataLastUpdated > best ? rec.dataLastUpdated : best;
+      }, null);
+      const label = latestDate ? formatDateLabel(latestDate) : null;
+      footerUpdatedEl.textContent = label
+        ? `Data updated ${label}`
+        : `Aggregated from ${records.length} season${records.length === 1 ? '' : 's'}`;
+    }
+  } catch (err) {
+    console.error('Failed to initialize records page', err);
+    if (loadingEl) {
+      loadingEl.textContent = 'Unable to load season records right now.';
+    }
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initRecords, { once: true });
+} else {
+  initRecords();
+}

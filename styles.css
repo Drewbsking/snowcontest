@@ -318,6 +318,79 @@ body {
   text-decoration: underline;
 }
 
+.record-loading {
+  font-size: .85rem;
+  color: var(--text-dim);
+  margin-top: .35rem;
+}
+
+.record-summary-grid {
+  display: grid;
+  gap: .75rem;
+  margin-top: .6rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.record-summary-item {
+  background: rgba(15,23,42,0.45);
+  border: 1px solid rgba(71,85,105,0.6);
+  border-radius: .75rem;
+  padding: .65rem .9rem;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.record-label {
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.record-value {
+  font-size: clamp(1.05rem, 0.95rem + 0.6vw, 1.35rem);
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.record-detail {
+  font-size: .78rem;
+  color: var(--text-dim);
+}
+
+.record-table-wrapper {
+  margin-top: .75rem;
+  overflow-x: auto;
+}
+
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8rem;
+  min-width: 520px;
+}
+
+.record-table thead th {
+  text-align: left;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  padding: .35rem .5rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid rgba(71,85,105,0.5);
+}
+
+.record-table tbody td {
+  padding: .45rem .5rem;
+  border-bottom: 1px solid rgba(71,85,105,0.3);
+  color: var(--text-main);
+}
+
+.record-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .chart-card-header {
   font-size: .95rem;
   font-weight: 500;
