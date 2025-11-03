@@ -58,13 +58,13 @@ function setLoading(isLoading) {
 }
 
 const guessSheetConfigs = [
-  { startYear: 2019, file: '19-20Guesses.xlsx' },
-  { startYear: 2020, file: '20-21Guesses.xlsx' },
-  { startYear: 2021, file: '21-22Guesses.xlsx' },
-  { startYear: 2022, file: '22-23Guesses.xlsx' },
-  { startYear: 2023, file: '23-24Guesses.xlsx' },
-  { startYear: 2024, file: '24-25Guesses.xlsx' },
-  { startYear: 2025, file: '25-26Guesses.xlsx' }
+  { startYear: 2019, file: 'Guesses/2019-2020 RCOC Snow Contest(Sheet1).csv' },
+  { startYear: 2020, file: 'Guesses/2020-2021 RCOC Snow Contest(Sheet1).csv' },
+  { startYear: 2021, file: 'Guesses/2021-2022 RCOC Snow Contest(Sheet1).csv' },
+  { startYear: 2022, file: 'Guesses/2022-2023 RCOC Snow Contest(Sheet1).csv' },
+  { startYear: 2023, file: 'Guesses/2023-2024 RCOC Snow Contest(Sheet1).csv' },
+  { startYear: 2024, file: 'Guesses/2024-2025 RCOC Snow Contest(Sheet1).csv' },
+  { startYear: 2025, file: 'Guesses/2025-2026 RCOC Snow Contest(Sheet1).csv' }
 ];
 
 const guessCache = new Map();
@@ -81,7 +81,6 @@ const guessStatEls = {
 };
 
 const guessCsvLinkEl = document.getElementById('guess-csv-link');
-let guessCsvUrl = null;
 
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
@@ -160,10 +159,6 @@ function animateNumberText(el, value, {
 
 function disableGuessCsvLink() {
   if (!guessCsvLinkEl) return;
-  if (guessCsvUrl) {
-    URL.revokeObjectURL(guessCsvUrl);
-    guessCsvUrl = null;
-  }
   guessCsvLinkEl.href = '#';
   guessCsvLinkEl.removeAttribute('download');
   guessCsvLinkEl.setAttribute('aria-disabled', 'true');
@@ -171,33 +166,16 @@ function disableGuessCsvLink() {
 
 function updateGuessCsvLink(startYear, entries) {
   if (!guessCsvLinkEl) return;
-  if (guessCsvUrl) {
-    URL.revokeObjectURL(guessCsvUrl);
-    guessCsvUrl = null;
-  }
-  if (!Number.isFinite(startYear) || !Array.isArray(entries) || !entries.length) {
+  const cfg = Number.isFinite(startYear)
+    ? guessSheetConfigs.find(c => c.startYear === startYear)
+    : null;
+  if (!cfg) {
     disableGuessCsvLink();
     return;
   }
-
-  const header = ['Name', 'Department', 'Guess (inches)'];
-  const dataRows = entries.map(entry => {
-    const name = entry?.name ? String(entry.name).trim() : '';
-    const dept = entry?.dept ? String(entry.dept).trim() : '';
-    const guess = Number.isFinite(entry?.guess) ? String(entry.guess) : '';
-    return [name, dept, guess];
-  });
-
-  const csvLines = [header, ...dataRows].map(row => row.map(cell => {
-    const safe = cell == null ? '' : String(cell);
-    const escaped = safe.replace(/"/g, '""');
-    return `"${escaped}"`;
-  }).join(',')).join('\r\n');
-
-  const blob = new Blob([csvLines], { type: 'text/csv;charset=utf-8;' });
-  guessCsvUrl = URL.createObjectURL(blob);
-  guessCsvLinkEl.href = guessCsvUrl;
-  guessCsvLinkEl.setAttribute('download', `snowfall_guesses_${startYear}-${startYear + 1}.csv`);
+  const fileName = (cfg.file.split('/').pop()) || `guesses_${startYear}-${startYear + 1}.csv`;
+  guessCsvLinkEl.href = cfg.file;
+  guessCsvLinkEl.setAttribute('download', fileName);
   guessCsvLinkEl.removeAttribute('aria-disabled');
 }
 
@@ -268,7 +246,6 @@ function setGuessStatsMessage(message) {
   resetAnimatedNumber(guessStatEls.highValue);
   guessStatEls.highNote.textContent = message;
   renderGuessHistogram([]);
-  disableGuessCsvLink();
 }
 
 function setGuessStatsData(guesses, startYear) {
@@ -621,47 +598,115 @@ function formatGuesserDisplay(entry) {
   return `${name}${deptPart} (${formatInches(entry.guess)}")`;
 }
 
-async function fetchGuessSheet(config) {
-  if (typeof XLSX === 'undefined') {
-    throw new Error('XLSX library not loaded');
+function parseCsv(text) {
+  // Remove BOM if present
+  if (text && text.charCodeAt(0) === 0xFEFF) {
+    text = text.slice(1);
   }
+  const rows = [];
+  let field = '';
+  let row = [];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        field += '"';
+        i++; // skip escaped quote
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        row.push(field);
+        field = '';
+      } else if (ch === '\n') {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = '';
+      } else if (ch === '\r') {
+        // handle CRLF by looking ahead; finalize row on CR
+        if (next === '\n') {
+          // will be handled when loop hits \n; but finalize here to avoid double
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = '';
+          i++; // skip the \n
+        } else {
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = '';
+        }
+      } else {
+        field += ch;
+      }
+    }
+  }
+  // flush last field/row if any characters remain
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+async function fetchGuessSheet(config) {
   const res = await fetch(config.file);
   if (!res.ok) {
     throw new Error(`Failed to load ${config.file}`);
   }
-  const arrayBuffer = await res.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(worksheet, {
-    header: 1,
-    raw: true,
-    defval: null
-  });
-  if (!rows.length) {
-    return [];
-  }
-  const header = rows[0].map(cell => {
-    if (cell == null) return '';
-    return String(cell).trim().toLowerCase();
-  });
-  const normalized = header.map(h => h.replace(/[^a-z0-9]/g, ''));
-  const nameIdx = normalized.findIndex(h => h.includes('name') || h.includes('guesser'));
-  const guessIdx = normalized.findIndex(h => (h.startsWith('guess') && h !== 'guesser') || h === 'snowguess' || h === 'totalguess');
-  const deptIdx = normalized.findIndex(h => h.includes('dist') || h.includes('dept'));
+  const text = await res.text();
+  const rows = parseCsv(text);
+  if (!rows || !rows.length) return [];
 
-  return rows.slice(1).map(row => {
-    const rawName = nameIdx >= 0 ? row[nameIdx] : row[0];
-    const rawGuess = guessIdx >= 0 ? row[guessIdx] : row[2];
-    const rawDept = deptIdx >= 0 ? row[deptIdx] : null;
-    const name = rawName == null ? '' : String(rawName).trim();
-    const guessVal = typeof rawGuess === 'number'
-      ? rawGuess
-      : parseFloat(String(rawGuess).replace(/[^0-9.\-]/g, ''));
+  const header = rows[0].map(cell => (cell == null ? '' : String(cell)).trim().toLowerCase());
+  const normalized = header.map(h => h.replace(/[^a-z0-9]/g, ''));
+
+  // Prefer alias, then name, then email
+  const aliasIdx = normalized.findIndex(h => h.includes('alias'));
+  const nameIdx = normalized.findIndex(h => h === 'name' || h.includes('guesser'));
+  const emailIdx = normalized.findIndex(h => h.includes('email'));
+
+  // Department/Division detection
+  const deptIdx = normalized.findIndex(h => h.includes('dept') || h.includes('division') || h.includes('dist'));
+
+  // Guess column detection: match broader phrasing from the form
+  const guessIdx = normalized.findIndex(h =>
+    h.includes('totalseasonalsnowfall') ||
+    (h.includes('snowfall') && h.includes('inches')) ||
+    h.startsWith('guess') ||
+    h === 'snowguess' || h === 'totalguess'
+  );
+
+  return rows.slice(1).map(rawRow => {
+    const get = (idx) => (idx >= 0 && idx < rawRow.length ? rawRow[idx] : null);
+    const rawAlias = get(aliasIdx);
+    const rawName = get(nameIdx);
+    const rawEmail = get(emailIdx);
+    const rawDept = get(deptIdx);
+    const rawGuess = get(guessIdx);
+
+    const name = (rawAlias ?? rawName ?? rawEmail ?? '').toString().trim();
+    let guessVal = null;
+    if (typeof rawGuess === 'number') {
+      guessVal = rawGuess;
+    } else if (rawGuess != null) {
+      const parsed = parseFloat(String(rawGuess).replace(/[^0-9.\-]/g, ''));
+      if (Number.isFinite(parsed)) guessVal = parsed;
+    }
+
     return {
       name,
       dept: rawDept == null ? '' : String(rawDept).trim(),
-      guess: Number.isFinite(guessVal) ? guessVal : null
+      guess: guessVal
     };
   }).filter(entry => entry.name && entry.guess != null);
 }
@@ -763,6 +808,9 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     setGuessStatsMessage('Guess sheet not found for this season.');
     return;
   }
+
+  // Point the download link at the season's raw CSV, regardless of entries
+  updateGuessCsvLink(parsedYear, null);
 
   let guesses = guessCache.get(parsedYear);
   if (!guesses) {
