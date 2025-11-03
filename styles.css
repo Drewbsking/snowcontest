@@ -284,7 +284,7 @@ body {
 }
 
 .total-value {
-  font-size: clamp(1.8rem, 1.6rem + 1.6vw, 2.25rem);
+  font-size: clamp(0.9rem, 0.8rem + 0.8vw, 1.125rem);
   font-weight: 600;
   line-height: 1.1;
   color: var(--text-main);
@@ -292,7 +292,7 @@ body {
 
 #first-snow-value,
 #last-snow-value {
-  font-size: clamp(1.45rem, 1.2rem + 1.1vw, 2rem);
+  font-size: clamp(0.725rem, 0.6rem + 0.55vw, 1rem);
   line-height: 1.2;
 }
 
