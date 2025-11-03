@@ -13,6 +13,30 @@
   let bankEl = null;
 
   const STYLE_CSS = `
+.snow-layer {
+  pointer-events: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: clamp(160px, 28vh, 320px);
+  overflow: hidden;
+  z-index: 0;
+}
+.snow-bank {
+  pointer-events: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  z-index: 1;
+  transition: height 2.4s ease-out;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 60%),
+    radial-gradient(circle at 72% 0%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 62%),
+    linear-gradient(to top, rgba(243,246,249,0.95) 0%, rgba(243,246,249,0.75) 38%, rgba(243,246,249,0.45) 70%, rgba(243,246,249,0));
+}
 .snowflake {
   position: absolute;
   top: -10px;
