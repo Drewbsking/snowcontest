@@ -230,9 +230,9 @@ body {
   padding: 0.45rem 0.75rem; /* tighter vertical padding */
   display: flex;
   flex-direction: column;
-  gap: .25rem;            /* reduce spacing between label/value/note */
+  gap: .20rem;            /* tighter spacing between label/value/note */
   justify-content: center; /* center content vertically */
-  min-height: clamp(76px, 11vh, 110px); /* reduce overall height */
+  min-height: clamp(56px, 8vh, 86px); /* more compact overall height */
 }
 
 /* Holiday badges */
@@ -543,7 +543,7 @@ body {
   }
 
   .total-box {
-    padding: 0.65rem 1rem; /* keep compact on larger screens too */
+    padding: 0.45rem 0.85rem; /* keep compact on larger screens too */
   }
 
   .top-bar {
