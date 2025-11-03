@@ -97,21 +97,18 @@
       margin-top: 1rem;
     }
 
-    footer {
+    /* Footer (match site style) */
+    .site-footer {
       margin-top: 2rem;
-      text-align: center;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(71,85,105,0.5);
       font-size: .9rem;
       color: var(--text-dim);
     }
-
-    footer a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    footer a:hover {
-      text-decoration: underline;
-    }
+    .footer-wrap { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+    .footer-link { color: var(--accent); text-decoration:none; }
+    .footer-link:hover { text-decoration:underline; }
+    .footer-sep { color: var(--text-dim); }
   </style>
 </head>
 <body>
@@ -127,7 +124,7 @@
     <header>
       <h1>Official Contest Rules</h1>
       <p>
-        Traffic Safety – Engineering is competing in the Road Commission for Oakland County’s “Guess How Much Snow We’ll Get” challenge. Entry is free, and the official data source is the White Lake Township station on <a href="https://www.rcc-acis.org/home" target="_blank" rel="noopener noreferrer">https://www.rcc-acis.org/home</a>.
+        Traffic Safety – Engineering is competing in the Road Commission for Oakland County’s “Guess How Much Snow We’ll Get” challenge. This contest is for Traffic Safety – Engineering employees only. Entry is free, and the official data source is the White Lake Township station on <a href="https://www.rcc-acis.org/home" target="_blank" rel="noopener noreferrer">https://www.rcc-acis.org/home</a>.
       </p>
     </header>
 
@@ -161,12 +158,32 @@
         <li>Each holiday spotlight has a $13 pot. Entrants must call the snow/no-snow outcome correctly to remain eligible; qualifying winners split the pot evenly.</li>
       </ul>
       <p class="footnote">
-        Questions about the contest? Contact the Managing Directors’ Office for clarification.
+        Questions or concerns? Contact the Traffic Safety – Engineering contest organizer.
       </p>
     </section>
-
-    <footer>
-      <a href="https://www.almanac.com/winter-extended-forecast-farmers-almanac" target="_blank" rel="noopener noreferrer">Farmer’s Almanac extended winter forecast</a>
+    <section class="card">
+      <h2>Disclaimer</h2>
+      <p>
+        This contest is for fun only. No warranties are expressed or implied. The organizers and employer are not liable for any loss, claim, or damages of any kind arising from participation.
+      </p>
+    </section>
+    
+    <footer class="site-footer">
+      <div class="footer-wrap">
+        <span id="data-updated">Data updated —</span>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://github.com/Drewbsking/snowcontest" target="_blank" rel="noopener">Crafted by Andrew Bates</a>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://github.com/netbymatt/ws4kp" target="_blank" rel="noopener">WeatherStar 4000+ by Matt Walsh</a>
+        <span class="footer-sep">·</span>
+        <span>Powered by <a class="footer-link" href="https://data.rcc-acis.org/" target="_blank" rel="noopener">NOAA ACIS</a></span>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://www.weather.gov/dtx/supdata2" target="_blank" rel="noopener">DTX Snowfall Data</a>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://www.weather.gov/wrh/climate?wfo=dtx" target="_blank" rel="noopener">DTX Climate</a>
+        <span class="footer-sep">·</span>
+        <a class="footer-link" href="https://www.almanac.com/winter-extended-forecast-farmers-almanac" target="_blank" rel="noopener">Farmer’s Almanac Winter Forecast</a>
+      </div>
     </footer>
   </div>
   <script src="snow.js" defer></script>
