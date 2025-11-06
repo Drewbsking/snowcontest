@@ -51,7 +51,7 @@
   <section class="card" id="range-summary-card">
     <div class="chart-card-header">
       <span>Range Summary</span>
-      <span class="chart-sub">Detroit Area (THREADEx) snowfall totals across the selected window.</span>
+      <span class="chart-sub">Snowfall totals across the selected window.</span>
     </div>
     <div class="range-summary-grid">
       <div class="range-summary-item">
@@ -60,22 +60,40 @@
         <div class="range-summary-note" id="range-total-note">Awaiting selection</div>
       </div>
       <div class="range-summary-item">
-        <div class="range-summary-label">Measured Days</div>
+        <div class="range-summary-label" id="range-days-label">Measured Days</div>
         <div class="range-summary-value" id="range-days">--</div>
         <div class="range-summary-note" id="range-days-note">≥0.1" days in range</div>
       </div>
       <div class="range-summary-item">
-        <div class="range-summary-label">Daily Peak</div>
+        <div class="range-summary-label" id="range-peak-label">Daily Peak</div>
         <div class="range-summary-value" id="range-peak">--</div>
         <div class="range-summary-note" id="range-peak-note">No data yet</div>
       </div>
     </div>
 </section>
 
+<!-- Source + aggregation controls -->
+<div class="data-toolbar" id="range-toolbar" style="margin-top:.25rem;">
+  <label for="datasetSelect" style="color:var(--text-dim)">Dataset</label>
+  <select id="datasetSelect">
+    <option value="threadex" selected>Detroit Area THREADEx</option>
+    <option value="wl">White Lake 4E (Daily)</option>
+  </select>
+  <span class="data-sep">·</span>
+  <label for="aggSelect" style="color:var(--text-dim)">View</label>
+  <select id="aggSelect">
+    <option value="daily" selected>Daily</option>
+    <option value="monthly">Monthly</option>
+    <option value="yearly">Yearly (Jul → Jun)</option>
+  </select>
+  <span class="data-sep">·</span>
+  <span class="data-source" id="active-range-hint">Showing Detroit Area THREADEx · Daily</span>
+</div>
+
   <section class="card" id="range-chart-card">
     <div class="chart-card-header">
-      <span>Detroit Area (THREADEx) Daily</span>
-      <span class="chart-sub">Daily snowfall bars with cumulative totals across the selected window.</span>
+      <span>Daily View</span>
+      <span class="chart-sub">Bars: snowfall, Line: cumulative totals.</span>
       <div class="data-toolbar">
         <button type="button" class="btn-link" id="range-reset-zoom" disabled>Reset Zoom</button>
         <span class="data-sep">·</span>
@@ -96,8 +114,8 @@
 
   <section class="card" id="threadex-chart-card">
     <div class="chart-card-header">
-      <span>Detroit Area (THREADEx) Monthly</span>
-      <span class="chart-sub">Bars show monthly snowfall; the line tracks cumulative monthly totals across the selected window.</span>
+      <span>Monthly / Yearly View</span>
+      <span class="chart-sub">Bars: aggregated snowfall; Line: cumulative totals across the selected window.</span>
       <div class="data-toolbar">
         <button type="button" class="btn-link" id="threadex-reset-zoom" disabled>Reset Zoom</button>
         <span class="data-sep">·</span>
