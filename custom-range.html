@@ -30,15 +30,16 @@
     <div class="chart-card-header">
       <span>Custom Date Range Explorer</span>
       <span class="chart-sub">Pick two dates to chart daily snowfall and running totals.</span>
+      <span class="chart-sub">Note: Daily snowfall data is available starting in 2001.</span>
     </div>
     <form id="range-form" class="range-form" novalidate>
       <div class="range-field">
         <label for="range-start">Start date</label>
-        <input type="date" id="range-start" name="start" required />
+        <input type="date" id="range-start" name="start" required min="2001-01-01" />
       </div>
       <div class="range-field">
         <label for="range-end">End date</label>
-        <input type="date" id="range-end" name="end" required />
+        <input type="date" id="range-end" name="end" required min="2001-01-01" />
       </div>
       <div class="range-actions">
         <button type="submit" class="btn-primary">Load Range</button>
