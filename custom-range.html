@@ -71,7 +71,19 @@
         <div class="range-summary-note" id="range-peak-note">No data yet</div>
       </div>
     </div>
-  </section>
+</section>
+
+<!-- Station toggle toolbar -->
+<div class="data-toolbar" id="station-toolbar" style="margin-top:.25rem;">
+  <label for="stationSelect" style="color:var(--text-dim)">Station</label>
+  <select id="stationSelect">
+    <option value="wl" selected>White Lake 4E (Daily)</option>
+    <option value="threadex">Detroit Area THREADEx (Monthly)</option>
+  </select>
+  <span class="data-sep">·</span>
+  <span class="data-source" id="active-station-hint">Showing White Lake 4E (Daily)</span>
+  
+</div>
 
   <section class="card" id="range-chart-card">
     <div class="chart-card-header">
@@ -90,6 +102,25 @@
       </div>
       <div class="no-snow-message" id="range-empty">Select a date range to begin.</div>
       <canvas id="rangeChart" aria-label="Daily snowfall bar chart and cumulative snowfall line chart" role="img"></canvas>
+    </div>
+  </section>
+
+  <section class="card" id="threadex-chart-card">
+    <div class="chart-card-header">
+      <span>Detroit Area (THREADEx) Monthly</span>
+      <span class="chart-sub">Bars show monthly snowfall; the line tracks cumulative monthly totals across the selected window.</span>
+      <div class="data-toolbar">
+        <button type="button" class="btn-link" id="threadex-export" disabled>Export CSV</button>
+        <span class="data-sep">·</span>
+        <span id="threadex-source" class="data-source">Awaiting selection</span>
+      </div>
+    </div>
+    <div class="chart-box range-chart-box">
+      <div class="loading-overlay" id="threadex-loading" hidden>
+        <div class="spinner"></div>
+        <div>Loading Detroit Area data…</div>
+      </div>
+      <canvas id="threadexChart" aria-label="Monthly snowfall bar chart and cumulative snowfall line chart for Detroit Area (THREADEx)" role="img"></canvas>
     </div>
   </section>
 </div>

@@ -10,6 +10,12 @@
   const emptyStateEl = document.getElementById('range-empty');
   const exportBtn = document.getElementById('range-export');
   const sourceEl = document.getElementById('range-source');
+  const stationSelect = document.getElementById('stationSelect');
+  const stationHint = document.getElementById('active-station-hint');
+  // THREADEx elements
+  const threadexCanvas = document.getElementById('threadexChart');
+  const threadexLoading = document.getElementById('threadex-loading');
+  const threadexSourceEl = document.getElementById('threadex-source');
   const footerUpdatedEl = document.getElementById('data-updated');
   const MIN_DATA_DATE_ISO = '2001-01-01';
 
@@ -21,9 +27,13 @@
   const peakNoteEl = document.getElementById('range-peak-note');
 
   let chartRef = null;
+  let threadexChartRef = null;
   let csvUrl = null;
+  let threadexCsvUrl = null;
   let currentToken = 0;
   const seasonCache = new Map();
+  let lastDailyRangeData = null;
+  let lastThreadexData = null;
 
   function formatDateLabel(dateInput) {
     if (!dateInput) return '';
@@ -46,6 +56,13 @@
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+  }
+
+  function formatYearMonthISO(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
   }
 
   function formatInches(value) {
@@ -80,6 +97,8 @@
     if (exportBtn) {
       exportBtn.disabled = true;
     }
+    const threadexExportBtn = document.getElementById('threadex-export');
+    if (threadexExportBtn) threadexExportBtn.disabled = true;
   }
 
   function resetSummary() {
@@ -96,6 +115,10 @@
       chartRef.destroy();
       chartRef = null;
     }
+    if (threadexChartRef) {
+      threadexChartRef.destroy();
+      threadexChartRef = null;
+    }
     if (emptyStateEl) {
       emptyStateEl.textContent = 'Select a date range to begin.';
       emptyStateEl.style.display = 'flex';
@@ -103,13 +126,24 @@
     if (sourceEl) {
       sourceEl.textContent = 'Awaiting selection';
     }
+    if (threadexSourceEl) {
+      threadexSourceEl.textContent = 'Awaiting selection';
+    }
     if (csvUrl) {
       URL.revokeObjectURL(csvUrl);
       csvUrl = null;
     }
+    if (threadexCsvUrl) {
+      URL.revokeObjectURL(threadexCsvUrl);
+      threadexCsvUrl = null;
+    }
     if (exportBtn) {
       exportBtn.disabled = true;
     }
+    const threadexExportBtn = document.getElementById('threadex-export');
+    if (threadexExportBtn) threadexExportBtn.disabled = true;
+    lastDailyRangeData = null;
+    lastThreadexData = null;
   }
 
   async function fetchSeason(startYear) {
@@ -269,6 +303,135 @@
     });
   }
 
+  function drawThreadExChart(labels, monthlyValues, cumulativeValues) {
+    if (!threadexCanvas) return;
+    if (threadexChartRef) {
+      threadexChartRef.destroy();
+    }
+
+    const barColors = monthlyValues.map((value) => {
+      if (typeof value === 'number' && !Number.isNaN(value)) {
+        return 'rgba(34,197,94,0.8)';
+      }
+      return 'rgba(148,163,184,0.18)';
+    });
+
+    threadexChartRef = new Chart(threadexCanvas.getContext('2d'), {
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Monthly Snowfall (in)',
+            data: monthlyValues,
+            yAxisID: 'yMonthly',
+            backgroundColor: barColors,
+            borderRadius: 3,
+            borderSkipped: false
+          },
+          {
+            type: 'line',
+            label: 'Cumulative (in)',
+            data: cumulativeValues,
+            yAxisID: 'yCum',
+            borderColor: 'rgba(56,189,248,1)',
+            backgroundColor: 'rgba(56,189,248,0.18)',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.25,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            ticks: { color: 'rgba(148,163,184,1)' },
+            grid: { color: 'rgba(51,65,85,0.4)' }
+          },
+          yMonthly: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Monthly (in)' },
+            ticks: { color: 'rgba(226,232,240,1)' },
+            grid: { color: 'rgba(51,65,85,0.35)' }
+          },
+          yCum: {
+            type: 'linear',
+            position: 'right',
+            title: { display: true, text: 'Cumulative (in)' },
+            ticks: { color: 'rgba(226,232,240,1)' },
+            grid: { drawOnChartArea: false }
+          }
+        }
+      }
+    });
+  }
+
+  async function fetchThreadExMonthly(startISO, endISO) {
+    // Convert to year-month bounds covering the inclusive range
+    const startDate = new Date(`${startISO}T00:00:00`);
+    const endDate = new Date(`${endISO}T00:00:00`);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return { labels: [], monthlyValues: [], cumulativeValues: [] };
+    const startYm = formatYearMonthISO(new Date(startDate.getFullYear(), startDate.getMonth(), 1));
+    const endYm = formatYearMonthISO(new Date(endDate.getFullYear(), endDate.getMonth(), 1));
+
+    const payload = {
+      sid: 'DTWthr 9',
+      sdate: startYm,
+      edate: endYm,
+      meta: ['name','state','sids'],
+      elems: [{ name: 'snow', interval: 'mly', reduce: 'sum', units: 'inch', maxmissing: 3, prec: 3 }],
+      output: 'json'
+    };
+
+    const res = await fetch('https://data.rcc-acis.org/StnData', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to load Detroit Area THREADEx data.');
+    const json = await res.json();
+
+    const labels = [];
+    const monthlyValues = [];
+    const cumulativeValues = [];
+    let cum = 0;
+
+    const withinRange = (y, mIdx) => {
+      const d = new Date(y, mIdx, 1);
+      return d >= new Date(`${startYm}-01T00:00:00`) && d <= new Date(`${endYm}-01T00:00:00`);
+    };
+
+    (json?.data || []).forEach(([year, months]) => {
+      const y = parseInt(year, 10);
+      if (!Array.isArray(months)) return;
+      for (let i = 0; i < 12; i += 1) {
+        if (!withinRange(y, i)) continue;
+        const raw = months[i];
+        let val = null;
+        if (raw === 'M') {
+          val = null; // monthly sum not computed due to missing data
+        } else if (raw === 'T') {
+          val = 0.0; // trace counts as 0
+        } else if (raw != null && raw !== '') {
+          const parsed = parseFloat(raw);
+          val = Number.isFinite(parsed) ? parsed : null;
+        }
+        const label = `${y}-${String(i + 1).padStart(2, '0')}`;
+        labels.push(label);
+        monthlyValues.push(val);
+        if (val != null) cum += val;
+        cumulativeValues.push(cum);
+      }
+    });
+
+    return { labels, monthlyValues, cumulativeValues };
+  }
+
   function updateSummary(rangeData, startISO, endISO) {
     if (!rangeData) {
       resetSummary();
@@ -343,6 +506,58 @@
     };
   }
 
+  function updateThreadexExport(m) {
+    const btn = document.getElementById('threadex-export');
+    if (!btn) return;
+    if (threadexCsvUrl) {
+      URL.revokeObjectURL(threadexCsvUrl);
+      threadexCsvUrl = null;
+    }
+    if (!m || !m.labels || !m.labels.length) {
+      btn.disabled = true;
+      return;
+    }
+    const header = ['year_month', 'monthly_snow_in', 'cumulative_snow_in'];
+    const rows = m.labels.map((label, idx) => {
+      const monthly = m.monthlyValues[idx];
+      const cum = m.cumulativeValues[idx];
+      return [label, monthly == null ? '' : monthly.toFixed(2), cum.toFixed(2)];
+    });
+    const lines = [header, ...rows]
+      .map((columns) => columns.map((value) => {
+        const safe = value == null ? '' : String(value);
+        const escaped = safe.replace(/\"/g, '""');
+        return `"${escaped}"`;
+      }).join(','))
+      .join('\r\n');
+    const blob = new Blob([lines], { type: 'text/csv;charset=utf-8;' });
+    threadexCsvUrl = URL.createObjectURL(blob);
+    btn.disabled = false;
+    btn.onclick = () => {
+      const link = document.createElement('a');
+      link.href = threadexCsvUrl;
+      link.download = `detroit_threadex_${m.labels[0]}_${m.labels[m.labels.length - 1]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+  }
+
+  function updateStationView() {
+    const choice = stationSelect ? stationSelect.value : 'wl';
+    const dailyCard = document.getElementById('range-chart-card');
+    const mlyCard = document.getElementById('threadex-chart-card');
+    if (choice === 'threadex') {
+      if (dailyCard) dailyCard.style.display = 'none';
+      if (mlyCard) mlyCard.style.display = '';
+      if (stationHint) stationHint.textContent = 'Showing Detroit Area THREADEx (Monthly)';
+    } else {
+      if (dailyCard) dailyCard.style.display = '';
+      if (mlyCard) mlyCard.style.display = 'none';
+      if (stationHint) stationHint.textContent = 'Showing White Lake 4E (Daily)';
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     const startISO = startInput?.value;
@@ -413,8 +628,28 @@
       drawChart(rangeData.labels, rangeData.dailyValues, rangeData.cumulativeValues);
       updateSummary(rangeData, startISO, endISO);
       updateSourceText(startISO, endISO, seasons);
+      lastDailyRangeData = rangeData;
       updateExport(rangeData);
       showMessage(`Loaded ${rangeData.labels.length} day${rangeData.labels.length === 1 ? '' : 's'} of data.`, 'success');
+
+      // Detroit Area (THREADEx) monthly overlay
+      if (threadexLoading) threadexLoading.hidden = false;
+      try {
+        const m = await fetchThreadExMonthly(startISO, endISO);
+        lastThreadexData = m;
+        drawThreadExChart(m.labels, m.monthlyValues, m.cumulativeValues);
+        if (threadexSourceEl) {
+          threadexSourceEl.textContent = `Source: NOAA ACIS – Detroit Area (THREADEx v9) · Months ${m.labels.length ? `${m.labels[0]} → ${m.labels[m.labels.length - 1]}` : '—'}`;
+        }
+        updateThreadexExport(m);
+      } catch (e) {
+        console.error('THREADEx load failed', e);
+        if (threadexSourceEl) threadexSourceEl.textContent = 'Detroit Area (THREADEx) unavailable for this range.';
+      } finally {
+        if (threadexLoading) threadexLoading.hidden = true;
+      }
+      // ensure selected station visibility
+      updateStationView();
     } catch (err) {
       console.error('Failed to load custom range', err);
       resetChart();
@@ -437,6 +672,11 @@
 
   if (form) {
     form.addEventListener('submit', handleSubmit);
+  }
+  if (stationSelect) {
+    stationSelect.addEventListener('change', updateStationView);
+    // init view on load
+    updateStationView();
   }
   if (resetBtn) {
     resetBtn.addEventListener('click', handleReset);
