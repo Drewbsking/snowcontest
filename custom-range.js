@@ -11,8 +11,6 @@
   const exportBtn = document.getElementById('range-export');
   const sourceEl = document.getElementById('range-source');
   const rangeResetZoomBtn = document.getElementById('range-reset-zoom');
-  const stationSelect = document.getElementById('stationSelect');
-  const stationHint = document.getElementById('active-station-hint');
   // THREADEx elements
   const threadexCanvas = document.getElementById('threadexChart');
   const threadexLoading = document.getElementById('threadex-loading');
@@ -30,9 +28,6 @@
   let csvUrl = null;
   let threadexCsvUrl = null;
   let currentToken = 0;
-  const seasonCache = new Map();
-  let lastDailyRangeData = null;
-  let lastThreadexData = null;
 
   function formatDateLabel(dateInput) {
     if (!dateInput) return '';
@@ -49,14 +44,6 @@
     });
   }
 
-  function formatISODate(date) {
-    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-
   function formatYearMonthISO(date) {
     if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
     const y = date.getFullYear();
@@ -71,13 +58,56 @@
     return str.endsWith('.0') ? str.slice(0, -2) : str;
   }
 
-  function determineSeasonStartYearForDate(dateStr) {
-    const date = new Date(`${dateStr}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return null;
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
-    return month >= 7 ? year : year - 1;
+  function normalizeSnowValue(raw) {
+    let value = raw;
+    if (Array.isArray(value)) {
+      [value] = value;
+    }
+    if (value === null || value === undefined || value === '' || value === 'M') {
+      return null;
+    }
+    if (value === 'T') {
+      return 0;
+    }
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
+
+  async function fetchThreadExDaily(startISO, endISO) {
+    const payload = {
+      sid: 'DTWthr 9',
+      sdate: startISO,
+      edate: endISO,
+      meta: ['name', 'state', 'sids'],
+      elems: [{ name: 'snow', units: 'inch', maxmissing: 10, prec: 3 }],
+      output: 'json'
+    };
+
+    const res = await fetch('https://data.rcc-acis.org/StnData', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to load Detroit Area THREADEx daily data.');
+    }
+
+    const json = await res.json();
+    const rows = [];
+    (json?.data || []).forEach((entry) => {
+      if (!Array.isArray(entry) || entry.length < 2) return;
+      const [date, raw] = entry;
+      if (!date) return;
+      rows.push({ date, snow: normalizeSnowValue(raw) });
+    });
+
+    return {
+      rows,
+      stationName: json?.meta?.name || 'Detroit Area (THREADEx)'
+    };
+  }
+
 
   function showMessage(text, type = 'info') {
     if (!messageEl) return;
@@ -98,6 +128,12 @@
     }
     const threadexExportBtn = document.getElementById('threadex-export');
     if (threadexExportBtn) threadexExportBtn.disabled = true;
+    if (isLoading && rangeResetZoomBtn) {
+      rangeResetZoomBtn.disabled = true;
+    }
+    if (isLoading && threadexResetZoomBtn) {
+      threadexResetZoomBtn.disabled = true;
+    }
   }
 
   function resetSummary() {
@@ -134,6 +170,9 @@
     if (threadexSourceEl) {
       threadexSourceEl.textContent = 'Awaiting selection';
     }
+    if (threadexLoading) {
+      threadexLoading.hidden = true;
+    }
     if (csvUrl) {
       URL.revokeObjectURL(csvUrl);
       csvUrl = null;
@@ -147,30 +186,6 @@
     }
     const threadexExportBtn = document.getElementById('threadex-export');
     if (threadexExportBtn) threadexExportBtn.disabled = true;
-    lastDailyRangeData = null;
-    lastThreadexData = null;
-  }
-
-  async function fetchSeason(startYear) {
-    if (!Number.isFinite(startYear)) return null;
-    if (seasonCache.has(startYear)) {
-      return seasonCache.get(startYear);
-    }
-    const promise = fetch(`snowdata.php?startYear=${encodeURIComponent(startYear)}`)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to load snowfall data for ${startYear}`);
-        }
-        return res.json();
-      })
-      .then((json) => {
-        if (json.error) {
-          throw new Error(json.error);
-        }
-        return json;
-      });
-    seasonCache.set(startYear, promise);
-    return promise;
   }
 
   function computeRangeData(dailyRows, startISO, endISO) {
@@ -503,12 +518,14 @@
     }
   }
 
-  function updateSourceText(startISO, endISO, seasons) {
+  function updateSourceText(startISO, endISO, stationName) {
     if (!sourceEl) return;
-    const uniqueSeasons = Array.from(new Set(seasons)).sort((a, b) => a - b);
-    sourceEl.textContent = `Data: NOAA ACIS – Official Measurement Site · Seasons ${uniqueSeasons.map((y) => `${y}-${y + 1}`).join(', ')}`;
+    const startLabel = formatDateLabel(startISO);
+    const endLabel = formatDateLabel(endISO);
+    const resolvedName = stationName || 'Detroit Area (THREADEx)';
+    sourceEl.textContent = `Source: NOAA ACIS – ${resolvedName} · ${startLabel} → ${endLabel}`;
     if (footerUpdatedEl) {
-      footerUpdatedEl.textContent = `Range: ${formatDateLabel(startISO)} → ${formatDateLabel(endISO)}`;
+      footerUpdatedEl.textContent = `Range: ${startLabel} → ${endLabel}`;
     }
   }
 
@@ -586,21 +603,6 @@
     };
   }
 
-  function updateStationView() {
-    const choice = stationSelect ? stationSelect.value : 'wl';
-    const dailyCard = document.getElementById('range-chart-card');
-    const mlyCard = document.getElementById('threadex-chart-card');
-    if (choice === 'threadex') {
-      if (dailyCard) dailyCard.style.display = 'none';
-      if (mlyCard) mlyCard.style.display = '';
-      if (stationHint) stationHint.textContent = 'Showing Detroit Area THREADEx (Monthly)';
-    } else {
-      if (dailyCard) dailyCard.style.display = '';
-      if (mlyCard) mlyCard.style.display = 'none';
-      if (stationHint) stationHint.textContent = 'Showing Official Measurement Site (Daily)';
-    }
-  }
-
   async function handleSubmit(event) {
     event.preventDefault();
     const startISO = startInput?.value;
@@ -621,25 +623,10 @@
     const token = ++currentToken;
 
     try {
-      const startYear = determineSeasonStartYearForDate(startISO);
-      const endYear = determineSeasonStartYearForDate(endISO);
-      if (!Number.isFinite(startYear) || !Number.isFinite(endYear)) {
-        throw new Error('Unable to determine seasons for the selected dates.');
-      }
-
-      const seasons = [];
-      for (let year = startYear; year <= endYear; year += 1) {
-        seasons.push(year);
-      }
-
-      const seasonData = await Promise.all(seasons.map(fetchSeason));
+      const { rows: dailyRows, stationName } = await fetchThreadExDaily(startISO, endISO);
       if (token !== currentToken) {
         return;
       }
-
-      const dailyRows = seasonData
-        .filter(Boolean)
-        .flatMap((season) => Array.isArray(season?.daily) ? season.daily : []);
 
       const rangeData = computeRangeData(dailyRows, startISO, endISO);
 
@@ -660,8 +647,7 @@
 
       drawChart(rangeData.labels, rangeData.dailyValues, rangeData.cumulativeValues);
       updateSummary(rangeData, startISO, endISO);
-      updateSourceText(startISO, endISO, seasons);
-      lastDailyRangeData = rangeData;
+      updateSourceText(startISO, endISO, stationName);
       updateExport(rangeData);
       showMessage(`Loaded ${rangeData.labels.length} day${rangeData.labels.length === 1 ? '' : 's'} of data.`, 'success');
 
@@ -669,7 +655,9 @@
       if (threadexLoading) threadexLoading.hidden = false;
       try {
         const m = await fetchThreadExMonthly(startISO, endISO);
-        lastThreadexData = m;
+        if (token !== currentToken) {
+          return;
+        }
         drawThreadExChart(m.labels, m.monthlyValues, m.cumulativeValues);
         if (threadexSourceEl) {
           threadexSourceEl.textContent = `Source: NOAA ACIS – Detroit Area (THREADEx v9) · Months ${m.labels.length ? `${m.labels[0]} → ${m.labels[m.labels.length - 1]}` : '—'}`;
@@ -681,8 +669,6 @@
       } finally {
         if (threadexLoading) threadexLoading.hidden = true;
       }
-      // ensure selected station visibility
-      updateStationView();
     } catch (err) {
       console.error('Failed to load custom range', err);
       resetChart();
@@ -705,11 +691,6 @@
 
   if (form) {
     form.addEventListener('submit', handleSubmit);
-  }
-  if (stationSelect) {
-    stationSelect.addEventListener('change', updateStationView);
-    // init view on load
-    updateStationView();
   }
   if (resetBtn) {
     resetBtn.addEventListener('click', handleReset);
