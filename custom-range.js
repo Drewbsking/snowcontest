@@ -1,5 +1,7 @@
 (() => {
   const MEASURABLE_THRESHOLD = 0.1;
+  const WHITE_LAKE_FIRST_SEASON = 2001;
+  const WHITE_LAKE_FIRST_DATE = '2001-07-01';
   const chartCanvas = document.getElementById('rangeChart');
   const form = document.getElementById('range-form');
   const startInput = document.getElementById('range-start');
@@ -26,6 +28,8 @@
   const peakValueEl = document.getElementById('range-peak');
   const peakNoteEl = document.getElementById('range-peak-note');
   const daysLabelEl = document.getElementById('range-days-label');
+  const daysValueEl = document.getElementById('range-days');
+  const daysNoteEl = document.getElementById('range-days-note');
   const peakLabelEl = document.getElementById('range-peak-label');
 
   let chartRef = null;
@@ -231,6 +235,9 @@
     if (totalNoteEl) totalNoteEl.textContent = 'Awaiting selection';
     if (peakValueEl) peakValueEl.textContent = '--';
     if (peakNoteEl) peakNoteEl.textContent = 'No data yet';
+    if (daysLabelEl) daysLabelEl.textContent = 'Measured Days';
+    if (daysValueEl) daysValueEl.textContent = '--';
+    if (daysNoteEl) daysNoteEl.textContent = '≥0.1" days in range';
   }
 
   function resetChart() {
@@ -434,7 +441,7 @@
     }
   }
 
-  function drawThreadExChart(labels, monthlyValues, cumulativeValues, leftAxisTitle = 'Monthly (in)') {
+  function drawThreadExChart(labels, monthlyValues, cumulativeValues, leftAxisTitle = 'Monthly (in)', primaryLabel = 'Monthly Snowfall (in)') {
     if (!threadexCanvas) return;
     if (threadexChartRef) {
       threadexChartRef.destroy();
@@ -453,7 +460,7 @@
         datasets: [
           {
             type: 'bar',
-            label: 'Monthly Snowfall (in)',
+            label: primaryLabel,
             data: monthlyValues,
             yAxisID: 'yMonthly',
             backgroundColor: barColors,
@@ -533,8 +540,10 @@
     const startDate = new Date(`${startISO}T00:00:00`);
     const endDate = new Date(`${endISO}T00:00:00`);
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return { labels: [], monthlyValues: [], cumulativeValues: [] };
-    const startYm = formatYearMonthISO(new Date(startDate.getFullYear(), startDate.getMonth(), 1));
-    const endYm = formatYearMonthISO(new Date(endDate.getFullYear(), endDate.getMonth(), 1));
+    const startMonthBound = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const endMonthBound = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+    const startYm = formatYearMonthISO(startMonthBound);
+    const endYm = formatYearMonthISO(endMonthBound);
 
     const payload = {
       sid: 'DTWthr 9',
@@ -558,31 +567,41 @@
     const cumulativeValues = [];
     let cum = 0;
 
-    const withinRange = (y, mIdx) => {
-      const d = new Date(y, mIdx, 1);
-      return d >= new Date(`${startYm}-01T00:00:00`) && d <= new Date(`${endYm}-01T00:00:00`);
+    const addMonthEntry = (year, monthIndexZeroBased, raw) => {
+      const pointDate = new Date(year, monthIndexZeroBased, 1);
+      if (Number.isNaN(pointDate.getTime())) return;
+      if (pointDate < startMonthBound || pointDate > endMonthBound) return;
+      let val = null;
+      if (raw === 'M') {
+        val = null;
+      } else if (raw === 'T') {
+        val = 0.0;
+      } else if (raw != null && raw !== '') {
+        const parsed = parseFloat(raw);
+        val = Number.isFinite(parsed) ? parsed : null;
+      }
+      const label = `${year}-${String(monthIndexZeroBased + 1).padStart(2, '0')}`;
+      labels.push(label);
+      monthlyValues.push(val);
+      if (val != null) cum += val;
+      cumulativeValues.push(cum);
     };
 
-    (json?.data || []).forEach(([year, months]) => {
-      const y = parseInt(year, 10);
-      if (!Array.isArray(months)) return;
-      for (let i = 0; i < 12; i += 1) {
-        if (!withinRange(y, i)) continue;
-        const raw = months[i];
-        let val = null;
-        if (raw === 'M') {
-          val = null; // monthly sum not computed due to missing data
-        } else if (raw === 'T') {
-          val = 0.0; // trace counts as 0
-        } else if (raw != null && raw !== '') {
-          const parsed = parseFloat(raw);
-          val = Number.isFinite(parsed) ? parsed : null;
-        }
-        const label = `${y}-${String(i + 1).padStart(2, '0')}`;
-        labels.push(label);
-        monthlyValues.push(val);
-        if (val != null) cum += val;
-        cumulativeValues.push(cum);
+    (json?.data || []).forEach((entry) => {
+      if (!Array.isArray(entry) || entry.length < 2) return;
+      const [first, second] = entry;
+      if (Array.isArray(second)) {
+        const year = parseInt(first, 10);
+        if (!Number.isFinite(year)) return;
+        second.forEach((raw, idx) => {
+          addMonthEntry(year, idx, raw);
+        });
+      } else {
+        const match = /^\s*(\d{4})-(\d{2})\s*$/.exec(String(first));
+        if (!match) return;
+        const year = parseInt(match[1], 10);
+        const monthIndex = parseInt(match[2], 10) - 1;
+        addMonthEntry(year, monthIndex, second);
       }
     });
 
@@ -606,6 +625,10 @@
     if (peakNoteEl) {
       peakNoteEl.textContent = rangeData.peakDate ? `On ${formatDateLabel(rangeData.peakDate)}` : 'No data for range';
     }
+    const measuredDays = rangeData.dailyValues.filter((value) => typeof value === 'number' && value >= MEASURABLE_THRESHOLD).length;
+    if (daysLabelEl) daysLabelEl.textContent = 'Measured Days';
+    if (daysValueEl) daysValueEl.textContent = `${measuredDays}`;
+    if (daysNoteEl) daysNoteEl.textContent = `≥${MEASURABLE_THRESHOLD}" days in range · ${rangeData.labels.length} total days`;
   }
 
   function updateSourceText(startISO, endISO, stationName) {
@@ -627,32 +650,45 @@
   }
 
   function updateSummaryForAggregate(kind, labels, values, startISO, endISO) {
-    const total = values.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
-    const idx = values.reduce((bestIdx, v, i, arr) => (arr[bestIdx] == null || (v != null && v > arr[bestIdx]) ? i : bestIdx), 0);
-    const peakVal = values[idx] ?? null;
-    const peakLabel = labels[idx] ?? null;
-    if (totalValueEl) totalValueEl.textContent = `${formatInches(total)}"`;
-    if (totalNoteEl) totalNoteEl.textContent = `${formatDateLabel(startISO)} → ${formatDateLabel(endISO)} (${labels.length} ${kind})`;
-    if (daysLabelEl) {
-      daysLabelEl.textContent = kind === 'day' ? 'Measured Days' : (kind === 'month' ? 'Months' : 'Seasons');
+    if (!labels || !labels.length) {
+      resetSummary();
+      return;
     }
-    const plural = kind === 'day' ? 'days' : kind === 'month' ? 'months' : 'seasons';
-    if (document.getElementById('range-days')) document.getElementById('range-days').textContent = `${labels.length}`;
-    if (document.getElementById('range-days-note')) document.getElementById('range-days-note').textContent = `${labels.length} ${plural} in range`;
-    if (peakLabelEl) peakLabelEl.textContent = kind === 'day' ? 'Daily Peak' : (kind === 'month' ? 'Peak Month' : 'Peak Season');
-    if (peakValueEl) peakValueEl.textContent = peakVal != null ? `${formatInches(peakVal)}"` : '--';
+    const total = values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+    let peakIdx = -1;
+    values.forEach((value, idx) => {
+      if (!Number.isFinite(value)) return;
+      if (peakIdx === -1 || value > values[peakIdx]) {
+        peakIdx = idx;
+      }
+    });
+    const peakVal = peakIdx >= 0 ? values[peakIdx] : null;
+    const peakLabel = peakIdx >= 0 ? labels[peakIdx] : null;
+
+    if (totalValueEl) totalValueEl.textContent = `${formatInches(total)}"`;
+    if (totalNoteEl) totalNoteEl.textContent = `${formatDateLabel(startISO)} → ${formatDateLabel(endISO)} (${labels.length} ${kind === 'month' ? 'months' : kind === 'season' ? 'seasons' : 'days'})`;
+
+    if (daysLabelEl) daysLabelEl.textContent = kind === 'month' ? 'Months' : kind === 'season' ? 'Seasons' : 'Measured Days';
+    if (daysValueEl) daysValueEl.textContent = `${labels.length}`;
+    if (daysNoteEl) {
+      const noun = kind === 'month' ? 'months' : kind === 'season' ? 'seasons' : 'days';
+      daysNoteEl.textContent = `${labels.length} ${noun} in range`;
+    }
+
+    if (peakLabelEl) peakLabelEl.textContent = kind === 'month' ? 'Peak Month' : kind === 'season' ? 'Peak Season' : 'Daily Peak';
+    if (peakValueEl) peakValueEl.textContent = Number.isFinite(peakVal) ? `${formatInches(peakVal)}"` : '--';
     if (peakNoteEl) {
       let pretty = '';
       if (kind === 'month' && peakLabel) {
         const [y, m] = String(peakLabel).split('-');
         const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
-        pretty = d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+        pretty = Number.isNaN(d.getTime()) ? peakLabel : d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
       } else if (kind === 'season' && peakLabel) {
         pretty = peakLabel;
       } else if (kind === 'day' && peakLabel) {
         pretty = formatDateLabel(peakLabel);
       }
-      peakNoteEl.textContent = peakLabel ? `On ${pretty}` : `No data for range`;
+      peakNoteEl.textContent = peakLabel ? `On ${pretty}` : 'No data for range';
     }
   }
 
@@ -745,6 +781,32 @@
     };
   }
 
+  function handleEmptyAggregate(infoText = 'No snowfall data exists for the selected window.', kind = 'day') {
+    if (threadexChartRef) {
+      threadexChartRef.destroy();
+      threadexChartRef = null;
+    }
+    if (threadexResetZoomBtn) {
+      threadexResetZoomBtn.disabled = true;
+      threadexResetZoomBtn.onclick = null;
+    }
+    updateSecondaryExport(null);
+    resetSummary();
+    if (kind !== 'day') {
+      if (daysLabelEl) daysLabelEl.textContent = kind === 'month' ? 'Months' : 'Seasons';
+      if (daysValueEl) daysValueEl.textContent = '0';
+      if (daysNoteEl) {
+        const noun = kind === 'month' ? 'months' : 'seasons';
+        daysNoteEl.textContent = `0 ${noun} in range`;
+      }
+      if (peakLabelEl) peakLabelEl.textContent = kind === 'month' ? 'Peak Month' : 'Peak Season';
+    }
+    if (peakNoteEl) peakNoteEl.textContent = 'No data for range';
+    if (threadexSourceEl) threadexSourceEl.textContent = infoText;
+    if (threadexLoading) threadexLoading.hidden = true;
+    showMessage(infoText, 'info');
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     const startISO = startInput?.value;
@@ -771,6 +833,14 @@
       updateCardsVisibility();
 
       if (agg === 'daily') {
+        if (threadexChartRef) {
+          threadexChartRef.destroy();
+          threadexChartRef = null;
+        }
+        if (threadexResetZoomBtn) {
+          threadexResetZoomBtn.disabled = true;
+          threadexResetZoomBtn.onclick = null;
+        }
         if (dataset === 'threadex') {
           const { rows: dailyRows, stationName } = await fetchThreadExDaily(startISO, endISO);
           if (token !== currentToken) return;
@@ -788,8 +858,16 @@
           updateExport(rangeData);
           showMessage(`Loaded ${rangeData.labels.length} day${rangeData.labels.length === 1 ? '' : 's'} of data.`, 'success');
         } else {
-          const startYear = determineSeasonStartYearForDate(startISO);
-          const endYear = determineSeasonStartYearForDate(endISO);
+          if (endISO < WHITE_LAKE_FIRST_DATE) {
+            resetChart();
+            resetSummary();
+            showMessage('White Lake 4E data begins July 1, 2001.', 'info');
+            return;
+          }
+          const startYearRaw = determineSeasonStartYearForDate(startISO);
+          const endYearRaw = determineSeasonStartYearForDate(endISO);
+          const startYear = Math.max(WHITE_LAKE_FIRST_SEASON, Number.isFinite(startYearRaw) ? startYearRaw : WHITE_LAKE_FIRST_SEASON);
+          const endYear = Math.max(startYear, Number.isFinite(endYearRaw) ? endYearRaw : startYear);
           const years = []; for (let y = startYear; y <= endYear; y += 1) years.push(y);
           const seasonData = await Promise.all(years.map(fetchSeason));
           if (token !== currentToken) return;
@@ -809,41 +887,85 @@
           showMessage(`Loaded ${rangeData.labels.length} day${rangeData.labels.length === 1 ? '' : 's'} of data.`, 'success');
         }
       } else {
+        if (chartRef) {
+          chartRef.destroy();
+          chartRef = null;
+        }
+        if (rangeResetZoomBtn) {
+          rangeResetZoomBtn.disabled = true;
+          rangeResetZoomBtn.onclick = null;
+        }
+        if (exportBtn) {
+          exportBtn.disabled = true;
+        }
+        if (csvUrl) {
+          URL.revokeObjectURL(csvUrl);
+          csvUrl = null;
+        }
+        if (sourceEl) {
+          sourceEl.textContent = 'Daily view not active';
+        }
         if (threadexLoading) threadexLoading.hidden = false;
         if (dataset === 'threadex') {
           const m = await fetchThreadExMonthly(startISO, endISO);
           if (token !== currentToken) return;
+          if (!m.labels.length) {
+            handleEmptyAggregate('No Detroit Area THREADEx data exists for that window.', 'month');
+            return;
+          }
           if (agg === 'monthly') {
-            drawThreadExChart(m.labels, m.monthlyValues, m.cumulativeValues, 'Monthly (in)');
+            drawThreadExChart(m.labels, m.monthlyValues, m.cumulativeValues, 'Monthly (in)', 'Monthly Snowfall (in)');
             updateSecondaryExport(m, 'monthly', 'year_month');
             updateSummaryForAggregate('month', m.labels, m.monthlyValues, startISO, endISO);
             if (threadexSourceEl) threadexSourceEl.textContent = `Source: NOAA ACIS – Detroit Area (THREADEx v9) · Months ${m.labels.length ? `${m.labels[0]} → ${m.labels[m.labels.length - 1]}` : '—'}`;
+            showMessage(`Loaded ${m.labels.length} month${m.labels.length === 1 ? '' : 's'} of data.`, 'success');
           } else {
             const yr = aggregateSeasonFromMonthly(m);
-            drawThreadExChart(yr.labels, yr.values, yr.cumulativeValues, 'Seasonal (in)');
+            if (!yr.labels.length) {
+              handleEmptyAggregate('No Detroit Area THREADEx seasonal data exists for that window.', 'season');
+              return;
+            }
+            drawThreadExChart(yr.labels, yr.values, yr.cumulativeValues, 'Seasonal (in)', 'Seasonal Snowfall (in)');
             updateSecondaryExport({ labels: yr.labels, values: yr.values, cumulativeValues: yr.cumulativeValues }, 'seasonal', 'season');
             updateSummaryForAggregate('season', yr.labels, yr.values, startISO, endISO);
             if (threadexSourceEl) threadexSourceEl.textContent = `Source: NOAA ACIS – Detroit Area (THREADEx v9) · Seasons ${yr.labels.length ? `${yr.labels[0]} → ${yr.labels[yr.labels.length - 1]}` : '—'}`;
+            showMessage(`Loaded ${yr.labels.length} season${yr.labels.length === 1 ? '' : 's'} of data.`, 'success');
           }
         } else {
-          const startYear = determineSeasonStartYearForDate(startISO);
-          const endYear = determineSeasonStartYearForDate(endISO);
+          if (endISO < WHITE_LAKE_FIRST_DATE) {
+            handleEmptyAggregate('White Lake 4E data begins July 1, 2001.', agg === 'monthly' ? 'month' : 'season');
+            return;
+          }
+          const startYearRaw = determineSeasonStartYearForDate(startISO);
+          const endYearRaw = determineSeasonStartYearForDate(endISO);
+          const startYear = Math.max(WHITE_LAKE_FIRST_SEASON, Number.isFinite(startYearRaw) ? startYearRaw : WHITE_LAKE_FIRST_SEASON);
+          const endYear = Math.max(startYear, Number.isFinite(endYearRaw) ? endYearRaw : startYear);
           const years = []; for (let y = startYear; y <= endYear; y += 1) years.push(y);
           const seasonData = await Promise.all(years.map(fetchSeason));
           if (token !== currentToken) return;
           const dailyRows = seasonData.filter(Boolean).flatMap((s) => Array.isArray(s?.daily) ? s.daily : []);
           if (agg === 'monthly') {
             const mm = aggregateMonthlyFromDaily(dailyRows, startISO, endISO);
-            drawThreadExChart(mm.labels, mm.monthlyValues, mm.cumulativeValues, 'Monthly (in)');
+            if (!mm.labels.length) {
+              handleEmptyAggregate('No White Lake 4E monthly data exists for that window.', 'month');
+              return;
+            }
+            drawThreadExChart(mm.labels, mm.monthlyValues, mm.cumulativeValues, 'Monthly (in)', 'Monthly Snowfall (in)');
             updateSecondaryExport(mm, 'monthly', 'year_month');
             updateSummaryForAggregate('month', mm.labels, mm.monthlyValues, startISO, endISO);
             if (threadexSourceEl) threadexSourceEl.textContent = `Source: NOAA ACIS – White Lake 4E (Daily) · Months ${mm.labels.length ? `${mm.labels[0]} → ${mm.labels[mm.labels.length - 1]}` : '—'}`;
+            showMessage(`Loaded ${mm.labels.length} month${mm.labels.length === 1 ? '' : 's'} of data.`, 'success');
           } else {
             const yy = aggregateSeasonFromDaily(dailyRows, startISO, endISO);
-            drawThreadExChart(yy.labels, yy.values, yy.cumulativeValues, 'Seasonal (in)');
+            if (!yy.labels.length) {
+              handleEmptyAggregate('No White Lake 4E seasonal data exists for that window.', 'season');
+              return;
+            }
+            drawThreadExChart(yy.labels, yy.values, yy.cumulativeValues, 'Seasonal (in)', 'Seasonal Snowfall (in)');
             updateSecondaryExport({ labels: yy.labels, values: yy.values, cumulativeValues: yy.cumulativeValues }, 'seasonal', 'season');
             updateSummaryForAggregate('season', yy.labels, yy.values, startISO, endISO);
             if (threadexSourceEl) threadexSourceEl.textContent = `Source: NOAA ACIS – White Lake 4E (Daily) · Seasons ${yy.labels.length ? `${yy.labels[0]} → ${yy.labels[yy.labels.length - 1]}` : '—'}`;
+            showMessage(`Loaded ${yy.labels.length} season${yy.labels.length === 1 ? '' : 's'} of data.`, 'success');
           }
         }
         if (threadexLoading) threadexLoading.hidden = true;
