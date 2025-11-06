@@ -27,6 +27,11 @@ body {
   overflow-x: hidden;
 }
 
+/* Ensure the HTML `hidden` attribute hides elements regardless of other styles */
+[hidden] {
+  display: none !important;
+}
+
 /* Decorative corner background image (place file as `corner-bg.png`).
    Rendered beneath content and the snow overlay. */
 /* Decorative corner image now anchored to footer, not viewport */

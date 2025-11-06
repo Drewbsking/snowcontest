@@ -89,6 +89,8 @@
       <span>Daily Snow vs Cumulative Total</span>
       <span class="chart-sub">Bars show daily snowfall; the line tracks cumulative snowfall across the selected window.</span>
       <div class="data-toolbar">
+        <button type="button" class="btn-link" id="range-reset-zoom" disabled>Reset Zoom</button>
+        <span class="data-sep">·</span>
         <button type="button" class="btn-link" id="range-export" disabled>Export CSV</button>
         <span class="data-sep">·</span>
         <span id="range-source" class="data-source">Awaiting selection</span>
@@ -109,6 +111,8 @@
       <span>Detroit Area (THREADEx) Monthly</span>
       <span class="chart-sub">Bars show monthly snowfall; the line tracks cumulative monthly totals across the selected window.</span>
       <div class="data-toolbar">
+        <button type="button" class="btn-link" id="threadex-reset-zoom" disabled>Reset Zoom</button>
+        <span class="data-sep">·</span>
         <button type="button" class="btn-link" id="threadex-export" disabled>Export CSV</button>
         <span class="data-sep">·</span>
         <span id="threadex-source" class="data-source">Awaiting selection</span>
@@ -126,6 +130,7 @@
 
 <script src="snow.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
 <script src="custom-range.js" defer></script>
 <footer class="site-footer">
   <div class="footer-wrap">

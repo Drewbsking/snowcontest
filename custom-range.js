@@ -10,12 +10,14 @@
   const emptyStateEl = document.getElementById('range-empty');
   const exportBtn = document.getElementById('range-export');
   const sourceEl = document.getElementById('range-source');
+  const rangeResetZoomBtn = document.getElementById('range-reset-zoom');
   const stationSelect = document.getElementById('stationSelect');
   const stationHint = document.getElementById('active-station-hint');
   // THREADEx elements
   const threadexCanvas = document.getElementById('threadexChart');
   const threadexLoading = document.getElementById('threadex-loading');
   const threadexSourceEl = document.getElementById('threadex-source');
+  const threadexResetZoomBtn = document.getElementById('threadex-reset-zoom');
   const footerUpdatedEl = document.getElementById('data-updated');
 
   const totalValueEl = document.getElementById('range-total');
@@ -113,6 +115,14 @@
     if (threadexChartRef) {
       threadexChartRef.destroy();
       threadexChartRef = null;
+    }
+    if (rangeResetZoomBtn) {
+      rangeResetZoomBtn.disabled = true;
+      rangeResetZoomBtn.onclick = null;
+    }
+    if (threadexResetZoomBtn) {
+      threadexResetZoomBtn.disabled = true;
+      threadexResetZoomBtn.onclick = null;
     }
     if (emptyStateEl) {
       emptyStateEl.textContent = 'Select a date range to begin.';
@@ -251,6 +261,24 @@
           mode: 'index',
           intersect: false
         },
+        plugins: {
+          zoom: {
+            limits: {
+              y: { min: 0 }
+            },
+            pan: {
+              enabled: true,
+              mode: 'x',
+              modifierKey: 'shift'
+            },
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              drag: { enabled: false },
+              mode: 'x'
+            }
+          }
+        },
         scales: {
           x: {
             ticks: {
@@ -291,6 +319,14 @@
         }
       }
     });
+    if (rangeResetZoomBtn) {
+      rangeResetZoomBtn.disabled = false;
+      rangeResetZoomBtn.onclick = () => {
+        if (chartRef && typeof chartRef.resetZoom === 'function') {
+          chartRef.resetZoom();
+        }
+      };
+    }
   }
 
   function drawThreadExChart(labels, monthlyValues, cumulativeValues) {
@@ -337,6 +373,24 @@
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
+        plugins: {
+          zoom: {
+            limits: {
+              y: { min: 0 }
+            },
+            pan: {
+              enabled: true,
+              mode: 'x',
+              modifierKey: 'shift'
+            },
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              drag: { enabled: false },
+              mode: 'x'
+            }
+          }
+        },
         scales: {
           x: {
             ticks: { color: 'rgba(148,163,184,1)' },
@@ -359,6 +413,14 @@
         }
       }
     });
+    if (threadexResetZoomBtn) {
+      threadexResetZoomBtn.disabled = false;
+      threadexResetZoomBtn.onclick = () => {
+        if (threadexChartRef && typeof threadexChartRef.resetZoom === 'function') {
+          threadexChartRef.resetZoom();
+        }
+      };
+    }
   }
 
   async function fetchThreadExMonthly(startISO, endISO) {
