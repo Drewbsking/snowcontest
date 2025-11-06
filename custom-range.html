@@ -34,11 +34,11 @@
     <form id="range-form" class="range-form" novalidate>
       <div class="range-field">
         <label for="range-start">Start date</label>
-        <input type="date" id="range-start" name="start" required min="2001-01-01" />
+        <input type="date" id="range-start" name="start" required />
       </div>
       <div class="range-field">
         <label for="range-end">End date</label>
-        <input type="date" id="range-end" name="end" required min="2001-01-01" />
+        <input type="date" id="range-end" name="end" required />
       </div>
       <div class="range-actions">
         <button type="submit" class="btn-primary">Load Range</button>
@@ -76,11 +76,11 @@
 <div class="data-toolbar" id="station-toolbar" style="margin-top:.25rem;">
   <label for="stationSelect" style="color:var(--text-dim)">Station</label>
   <select id="stationSelect">
-    <option value="wl" selected>White Lake 4E (Daily)</option>
+    <option value="wl" selected>Official Measurement Site (Daily)</option>
     <option value="threadex">Detroit Area THREADEx (Monthly)</option>
   </select>
   <span class="data-sep">·</span>
-  <span class="data-source" id="active-station-hint">Showing White Lake 4E (Daily)</span>
+  <span class="data-source" id="active-station-hint">Showing Official Measurement Site (Daily)</span>
   
 </div>
 

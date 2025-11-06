@@ -17,12 +17,9 @@
   const threadexLoading = document.getElementById('threadex-loading');
   const threadexSourceEl = document.getElementById('threadex-source');
   const footerUpdatedEl = document.getElementById('data-updated');
-  const MIN_DATA_DATE_ISO = '2001-01-01';
 
   const totalValueEl = document.getElementById('range-total');
   const totalNoteEl = document.getElementById('range-total-note');
-  const daysValueEl = document.getElementById('range-days');
-  const daysNoteEl = document.getElementById('range-days-note');
   const peakValueEl = document.getElementById('range-peak');
   const peakNoteEl = document.getElementById('range-peak-note');
 
@@ -104,8 +101,6 @@
   function resetSummary() {
     if (totalValueEl) totalValueEl.textContent = '--';
     if (totalNoteEl) totalNoteEl.textContent = 'Awaiting selection';
-    if (daysValueEl) daysValueEl.textContent = '--';
-    if (daysNoteEl) daysNoteEl.textContent = '≥0.1" days in range';
     if (peakValueEl) peakValueEl.textContent = '--';
     if (peakNoteEl) peakNoteEl.textContent = 'No data yet';
   }
@@ -178,7 +173,6 @@
     const dailyValues = [];
     const cumulativeValues = [];
     let totalSnow = 0;
-    let measurableDays = 0;
     let peakValue = null;
     let peakDate = null;
 
@@ -188,9 +182,6 @@
       dailyValues.push(snow);
       if (snow != null) {
         cumulative += snow;
-        if (snow >= MEASURABLE_THRESHOLD) {
-          measurableDays += 1;
-        }
         totalSnow += snow;
         if (peakValue == null || snow > peakValue) {
           peakValue = snow;
@@ -205,7 +196,6 @@
       dailyValues,
       cumulativeValues,
       totalSnow,
-      measurableDays,
       peakValue,
       peakDate,
       filtered
@@ -443,27 +433,18 @@
     if (totalNoteEl) {
       totalNoteEl.textContent = `${formatDateLabel(startISO)} → ${formatDateLabel(endISO)} (${rangeData.labels.length} day${rangeData.labels.length === 1 ? '' : 's'})`;
     }
-    if (daysValueEl) {
-      daysValueEl.textContent = String(rangeData.measurableDays);
-    }
-    if (daysNoteEl) {
-      const share = rangeData.labels.length
-        ? `${((rangeData.measurableDays / rangeData.labels.length) * 100).toFixed(0)}% of days`
-        : '≥0.1" days in range';
-      daysNoteEl.textContent = share;
-    }
     if (peakValueEl) {
       peakValueEl.textContent = rangeData.peakValue != null ? `${formatInches(rangeData.peakValue)}"` : '--';
     }
     if (peakNoteEl) {
-      peakNoteEl.textContent = rangeData.peakDate ? `On ${formatDateLabel(rangeData.peakDate)}` : 'No measurable days';
+      peakNoteEl.textContent = rangeData.peakDate ? `On ${formatDateLabel(rangeData.peakDate)}` : 'No data for range';
     }
   }
 
   function updateSourceText(startISO, endISO, seasons) {
     if (!sourceEl) return;
     const uniqueSeasons = Array.from(new Set(seasons)).sort((a, b) => a - b);
-    sourceEl.textContent = `Data: NOAA ACIS – White Lake 4E · Seasons ${uniqueSeasons.map((y) => `${y}-${y + 1}`).join(', ')}`;
+    sourceEl.textContent = `Data: NOAA ACIS – Official Measurement Site · Seasons ${uniqueSeasons.map((y) => `${y}-${y + 1}`).join(', ')}`;
     if (footerUpdatedEl) {
       footerUpdatedEl.textContent = `Range: ${formatDateLabel(startISO)} → ${formatDateLabel(endISO)}`;
     }
@@ -554,7 +535,7 @@
     } else {
       if (dailyCard) dailyCard.style.display = '';
       if (mlyCard) mlyCard.style.display = 'none';
-      if (stationHint) stationHint.textContent = 'Showing White Lake 4E (Daily)';
+      if (stationHint) stationHint.textContent = 'Showing Official Measurement Site (Daily)';
     }
   }
 
@@ -567,17 +548,7 @@
       showMessage('Please choose both a start and end date.', 'error');
       return;
     }
-    // Guard against pre-2001 selection; data begins in 2001
-    if (startISO < MIN_DATA_DATE_ISO) {
-      showMessage('Snowfall data starts on Jan 1, 2001. Please pick a start date on or after 2001-01-01.', 'error');
-      if (startInput) startInput.focus();
-      return;
-    }
-    if (endISO < MIN_DATA_DATE_ISO) {
-      showMessage('Snowfall data starts on Jan 1, 2001. Please pick an end date on or after 2001-01-01.', 'error');
-      if (endInput) endInput.focus();
-      return;
-    }
+    // No lower bound validation; allow any user-selected dates
     if (startISO > endISO) {
       showMessage('Start date must be on or before the end date.', 'error');
       return;
