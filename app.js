@@ -14,7 +14,15 @@ function setLoading(isLoading) {
   }
 }
 
+// Known guess sheets (some older seasons may not have a sheet; set file: null)
 const guessSheetConfigs = [
+  { startYear: 2012, file: null },
+  { startYear: 2013, file: null },
+  { startYear: 2014, file: null },
+  { startYear: 2015, file: null },
+  { startYear: 2016, file: null },
+  { startYear: 2017, file: null },
+  { startYear: 2018, file: null },
   { startYear: 2019, file: 'Guesses/2019-2020 RCOC Snow Contest(Sheet1).csv' },
   { startYear: 2020, file: 'Guesses/2020-2021 RCOC Snow Contest(Sheet1).csv' },
   { startYear: 2021, file: 'Guesses/2021-2022 RCOC Snow Contest(Sheet1).csv' },
@@ -143,7 +151,7 @@ function updateGuessCsvLink(startYear) {
   const cfg = Number.isFinite(startYear)
     ? guessSheetConfigs.find(c => c.startYear === startYear)
     : null;
-  if (!cfg) {
+  if (!cfg || !cfg.file) {
     disableGuessCsvLink();
     return;
   }
@@ -728,6 +736,9 @@ function parseCsv(text) {
 }
 
 async function fetchGuessSheet(config) {
+  if (!config || !config.file) {
+    return [];
+  }
   const res = await fetch(config.file);
   if (!res.ok) {
     throw new Error(`Failed to load ${config.file}`);
@@ -866,14 +877,12 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   }
 
   const config = guessSheetConfigs.find(cfg => cfg.startYear === parsedYear);
-  if (!config) {
-    seasonalEl.innerHTML = 'No guess sheet was found for this season.';
-    setGuessStatsMessage('Guess sheet not found for this season.');
-    return;
+  if (!config || !config.file) {
+    disableGuessCsvLink();
+  } else {
+    // Point the download link at the season's raw CSV by default
+    updateGuessCsvLink(parsedYear);
   }
-
-  // Point the download link at the season's raw CSV by default
-  updateGuessCsvLink(parsedYear);
 
   const revealOpen = isGuessRevealOpen(parsedYear);
   let guesses = [];
@@ -886,19 +895,15 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
       } catch (err) {
         console.error('Failed loading guesses for season', parsedYear, err);
         if (token !== currentResultsToken) return;
-        seasonalEl.innerHTML = 'Unable to load guesses for this season.';
-        setGuessStatsMessage('Unable to load guess data.');
-        return;
+        guesses = [];
       }
     }
     if (token !== currentResultsToken) return;
     if (!guesses.length) {
-      const msg = 'No guesses submitted yet.';
-      seasonalEl.innerHTML = msg;
-      setGuessStatsMessage('No guesses submitted yet.');
-      return;
+      setGuessStatsMessage(config && config.file ? 'No guesses submitted yet.' : 'Guess sheet not found for this season.');
+    } else {
+      setGuessStatsData(guesses, parsedYear);
     }
-    setGuessStatsData(guesses, parsedYear);
   } else {
     // Hide guesses until reveal time
     setGuessStatsMessage(`Guesses hidden until ${getRevealLabelET()}.`);

@@ -164,6 +164,13 @@
   <script src="snow.js" defer></script>
   <script>
     const guessSheetConfigs = [
+      { startYear: 2012, file: null },
+      { startYear: 2013, file: null },
+      { startYear: 2014, file: null },
+      { startYear: 2015, file: null },
+      { startYear: 2016, file: null },
+      { startYear: 2017, file: null },
+      { startYear: 2018, file: null },
       { startYear: 2019, file: 'Guesses/2019-2020 RCOC Snow Contest(Sheet1).csv' },
       { startYear: 2020, file: 'Guesses/2020-2021 RCOC Snow Contest(Sheet1).csv' },
       { startYear: 2021, file: 'Guesses/2021-2022 RCOC Snow Contest(Sheet1).csv' },
@@ -328,6 +335,7 @@
     }
 
     async function fetchGuessSheet(config) {
+      if (!config || !config.file) return [];
       const res = await fetch(config.file);
       if (!res.ok) throw new Error(`Failed to load ${config.file}`);
       const text = await res.text();
@@ -413,7 +421,15 @@
         for (const config of guessSheetConfigs) {
           const revealOpen = isGuessRevealOpen(config.startYear);
           const seasonData = await fetchSeasonData(config.startYear);
-          const guesses = revealOpen ? await fetchGuessSheet(config) : [];
+          let guesses = [];
+          if (revealOpen) {
+            try {
+              guesses = await fetchGuessSheet(config);
+            } catch (e) {
+              console.warn('Guess sheet unavailable for', config.startYear);
+              guesses = [];
+            }
+          }
 
           const seasonStartIso = seasonData.season_start || seasonData.seasonal_start || seasonData.start_date;
           const seasonEndIso = seasonData.season_end || seasonData.seasonal_end || seasonData.end_date;
@@ -489,7 +505,7 @@
   <footer class="site-footer">
     <div class="footer-wrap">
       <span id="data-updated">Data updated —</span>
-      <span class="footer-sep">·</span>
+      <a class="footer-sep" href="wheel.png" target="_blank" rel="noopener" style="text-decoration:none" aria-hidden="true" tabindex="-1">·</a>
       <a class="footer-link" href="https://github.com/Drewbsking/snowcontest" target="_blank" rel="noopener">Crafted by Andrew Bates</a>
       <span class="footer-sep">·</span>
       <a class="footer-link" href="https://github.com/netbymatt/ws4kp" target="_blank" rel="noopener">WeatherStar 4000+ by Matt Walsh</a>
