@@ -11,6 +11,7 @@
   const exportBtn = document.getElementById('range-export');
   const sourceEl = document.getElementById('range-source');
   const footerUpdatedEl = document.getElementById('data-updated');
+  const MIN_DATA_DATE_ISO = '2001-01-01';
 
   const totalValueEl = document.getElementById('range-total');
   const totalNoteEl = document.getElementById('range-total-note');
@@ -349,6 +350,17 @@
 
     if (!startISO || !endISO) {
       showMessage('Please choose both a start and end date.', 'error');
+      return;
+    }
+    // Guard against pre-2001 selection; data begins in 2001
+    if (startISO < MIN_DATA_DATE_ISO) {
+      showMessage('Snowfall data starts on Jan 1, 2001. Please pick a start date on or after 2001-01-01.', 'error');
+      if (startInput) startInput.focus();
+      return;
+    }
+    if (endISO < MIN_DATA_DATE_ISO) {
+      showMessage('Snowfall data starts on Jan 1, 2001. Please pick an end date on or after 2001-01-01.', 'error');
+      if (endInput) endInput.focus();
       return;
     }
     if (startISO > endISO) {
