@@ -835,8 +835,7 @@ async function fetchGuessSheet(config) {
 
     const alias = trimValue(rawAlias);
     const fallbackName = trimValue(rawName);
-    const fallbackEmail = trimValue(rawEmail);
-    const name = alias || fallbackName || fallbackEmail;
+    const name = alias || fallbackName || 'Anonymous';
     let guessVal = null;
     if (typeof rawGuess === 'number') {
       guessVal = rawGuess;
@@ -866,6 +865,9 @@ async function fetchGuessSheet(config) {
       if (alias) {
         clone[nameIdx] = alias;
       }
+    }
+    if (emailIdx >= 0) {
+      clone[emailIdx] = idx === 0 ? 'Email (hidden)' : '';
     }
     return clone;
   });
