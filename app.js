@@ -2,6 +2,7 @@ let chartRef = null;
 let currentController = null; // to cancel in-flight fetches
 let guessHistogramChart = null;
 let holidayGuessChart = null;
+let guessCsvObjectUrl = null;
 
 function setLoading(isLoading) {
   const overlay = document.getElementById('loading-overlay');
@@ -141,6 +142,10 @@ function animateNumberText(el, value, {
 
 function disableGuessCsvLink() {
   if (!guessCsvLinkEl) return;
+  if (guessCsvObjectUrl) {
+    URL.revokeObjectURL(guessCsvObjectUrl);
+    guessCsvObjectUrl = null;
+  }
   guessCsvLinkEl.href = '#';
   guessCsvLinkEl.removeAttribute('download');
   guessCsvLinkEl.setAttribute('aria-disabled', 'true');
@@ -148,6 +153,10 @@ function disableGuessCsvLink() {
 
 function updateGuessCsvLink(startYear) {
   if (!guessCsvLinkEl) return;
+  if (guessCsvObjectUrl) {
+    URL.revokeObjectURL(guessCsvObjectUrl);
+    guessCsvObjectUrl = null;
+  }
   const cfg = Number.isFinite(startYear)
     ? guessSheetConfigs.find(c => c.startYear === startYear)
     : null;
@@ -158,6 +167,22 @@ function updateGuessCsvLink(startYear) {
   const fileName = (cfg.file.split('/').pop()) || `guesses_${startYear}-${startYear + 1}.csv`;
   guessCsvLinkEl.href = cfg.file;
   guessCsvLinkEl.setAttribute('download', fileName);
+  guessCsvLinkEl.removeAttribute('aria-disabled');
+}
+
+function setGuessCsvDownloadData(csvText, fileName) {
+  if (!guessCsvLinkEl || !csvText) return;
+  if (guessCsvObjectUrl) {
+    URL.revokeObjectURL(guessCsvObjectUrl);
+  }
+  const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+  guessCsvObjectUrl = URL.createObjectURL(blob);
+  guessCsvLinkEl.href = guessCsvObjectUrl;
+  if (fileName) {
+    guessCsvLinkEl.setAttribute('download', fileName);
+  } else {
+    guessCsvLinkEl.removeAttribute('download');
+  }
   guessCsvLinkEl.removeAttribute('aria-disabled');
 }
 
@@ -275,7 +300,6 @@ function setGuessStatsData(guesses, startYear) {
 
   renderGuessHistogram(valid);
   renderHolidayGuessChart(valid, startYear);
-  updateGuessCsvLink(startYear);
 }
 
 function determineLastDataDate(dailyRows) {
@@ -735,9 +759,23 @@ function parseCsv(text) {
   return rows;
 }
 
+function stringifyCsv(rows) {
+  if (!Array.isArray(rows)) return '';
+  return rows.map(row => {
+    const cells = Array.isArray(row) ? row : [];
+    return cells.map(cell => {
+      const value = cell == null ? '' : String(cell);
+      if (/["\r\n,]/.test(value)) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    }).join(',');
+  }).join('\r\n');
+}
+
 async function fetchGuessSheet(config) {
   if (!config || !config.file) {
-    return [];
+    return { entries: [], sanitizedCsv: '' };
   }
   const res = await fetch(config.file);
   if (!res.ok) {
@@ -745,7 +783,9 @@ async function fetchGuessSheet(config) {
   }
   const text = await res.text();
   const rows = parseCsv(text);
-  if (!rows || !rows.length) return [];
+  if (!rows || !rows.length) {
+    return { entries: [], sanitizedCsv: '' };
+  }
 
   const header = rows[0].map(cell => (cell == null ? '' : String(cell)).trim().toLowerCase());
   const normalized = header.map(h => h.replace(/[^a-z0-9]/g, ''));
@@ -783,8 +823,9 @@ async function fetchGuessSheet(config) {
     if (s === 'no' || s === 'n' || s === 'false' || s === '0') return false;
     return null;
   };
+  const trimValue = (val) => (val == null ? '' : String(val).trim());
 
-  return rows.slice(1).map(rawRow => {
+  const entries = rows.slice(1).map(rawRow => {
     const get = (idx) => (idx >= 0 && idx < rawRow.length ? rawRow[idx] : null);
     const rawAlias = get(aliasIdx);
     const rawName = get(nameIdx);
@@ -792,7 +833,10 @@ async function fetchGuessSheet(config) {
     const rawDept = get(deptIdx);
     const rawGuess = get(guessIdx);
 
-    const name = (rawAlias ?? rawName ?? rawEmail ?? '').toString().trim();
+    const alias = trimValue(rawAlias);
+    const fallbackName = trimValue(rawName);
+    const fallbackEmail = trimValue(rawEmail);
+    const name = alias || fallbackName || fallbackEmail;
     let guessVal = null;
     if (typeof rawGuess === 'number') {
       guessVal = rawGuess;
@@ -814,6 +858,20 @@ async function fetchGuessSheet(config) {
       }
     };
   }).filter(entry => entry.name && entry.guess != null);
+
+  const sanitizedRows = rows.map((row, idx) => {
+    const clone = Array.isArray(row) ? row.slice() : [];
+    if (idx > 0 && nameIdx >= 0 && aliasIdx >= 0) {
+      const alias = trimValue(clone[aliasIdx]);
+      if (alias) {
+        clone[nameIdx] = alias;
+      }
+    }
+    return clone;
+  });
+  const sanitizedCsv = stringifyCsv(sanitizedRows);
+
+  return { entries, sanitizedCsv };
 }
 
 async function fetchSeasonTotals(startYear) {
@@ -877,32 +935,41 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   }
 
   const config = guessSheetConfigs.find(cfg => cfg.startYear === parsedYear);
-  if (!config || !config.file) {
-    disableGuessCsvLink();
-  } else {
-    // Point the download link at the season's raw CSV by default
-    updateGuessCsvLink(parsedYear);
-  }
+  disableGuessCsvLink();
 
   const revealOpen = isGuessRevealOpen(parsedYear);
   let guesses = [];
+  let sanitizedCsvText = '';
   if (revealOpen) {
-    guesses = guessCache.get(parsedYear);
-    if (!guesses) {
+    let cached = guessCache.get(parsedYear);
+    if (!cached) {
       try {
-        guesses = await fetchGuessSheet(config);
-        guessCache.set(parsedYear, guesses);
+        cached = await fetchGuessSheet(config);
+        guessCache.set(parsedYear, cached);
       } catch (err) {
         console.error('Failed loading guesses for season', parsedYear, err);
         if (token !== currentResultsToken) return;
-        guesses = [];
+        cached = { entries: [], sanitizedCsv: '' };
       }
     }
     if (token !== currentResultsToken) return;
+    if (Array.isArray(cached)) {
+      guesses = cached;
+      sanitizedCsvText = '';
+    } else if (cached && typeof cached === 'object') {
+      guesses = Array.isArray(cached.entries) ? cached.entries : [];
+      sanitizedCsvText = typeof cached.sanitizedCsv === 'string' ? cached.sanitizedCsv : '';
+    }
     if (!guesses.length) {
       setGuessStatsMessage(config && config.file ? 'No guesses submitted yet.' : 'Guess sheet not found for this season.');
     } else {
       setGuessStatsData(guesses, parsedYear);
+    }
+    const fileName = (config && config.file && config.file.split('/').pop()) || `guesses_${parsedYear}-${parsedYear + 1}.csv`;
+    if (sanitizedCsvText) {
+      setGuessCsvDownloadData(sanitizedCsvText, fileName);
+    } else if (config && config.file) {
+      updateGuessCsvLink(parsedYear);
     }
   } else {
     // Hide guesses until reveal time
