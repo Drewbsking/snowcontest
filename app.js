@@ -1432,7 +1432,7 @@ async function loadSeason(startYear) {
       }
     }
 
-    drawChart(labels, dailySnow, seasonalCum);
+    drawChart(labels, dailySnow, seasonalCum, firstSnowDay, lastSnowDay);
     if (Number.isFinite(parsedStartYear)) {
       seasonDataCache.set(parsedStartYear, json);
       updateContestResults(parsedStartYear, json);
@@ -1465,7 +1465,7 @@ async function loadSeason(startYear) {
 }
 
 // Draw or redraw Chart.js chart
-function drawChart(labels, dailySnow, seasonalCum) {
+function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnowDay = null) {
   const canvas = document.getElementById('snowChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -1473,6 +1473,14 @@ function drawChart(labels, dailySnow, seasonalCum) {
 
   if (chartRef) {
     chartRef.destroy();
+  }
+
+  // Calculate x-axis limits based on first/last snowfall
+  let xAxisMin = undefined;
+  let xAxisMax = undefined;
+  if (firstSnowDay && lastSnowDay) {
+    xAxisMin = formatISODate(firstSnowDay);
+    xAxisMax = formatISODate(lastSnowDay);
   }
 
   const barColors = [];
@@ -1559,7 +1567,10 @@ function drawChart(labels, dailySnow, seasonalCum) {
   if (resolvedZoomPlugin) {
     pluginOptions.zoom = {
       limits: {
-        x: { min: 'original', max: 'original' },
+        x: {
+          min: xAxisMin || 'original',
+          max: xAxisMax || 'original'
+        },
         y: { min: 'original', max: 'original' }
       },
       pan: {
@@ -1642,6 +1653,8 @@ function drawChart(labels, dailySnow, seasonalCum) {
       plugins: pluginOptions,
       scales: {
         x: {
+          min: xAxisMin,
+          max: xAxisMax,
           ticks: {
             maxTicksLimit: 10,
             color: 'rgba(148,163,184,1)' // slate-400
