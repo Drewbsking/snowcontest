@@ -1436,8 +1436,8 @@ async function loadSeason(startYear) {
     // Calculate prediction for current/active seasons
     let prediction = null;
     const todayDate = new Date();
-    const seasonStartDate = parseISODate(seasonStartStr);
-    const seasonEndDate = parseISODate(seasonEndStr);
+    const seasonStartDate = parseISODate(seasonStart);
+    const seasonEndDate = parseISODate(seasonEnd);
     const isActiveSeason = seasonStartDate && seasonEndDate && todayDate >= seasonStartDate && todayDate <= seasonEndDate;
 
     if (isActiveSeason) {
