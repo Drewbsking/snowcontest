@@ -1146,7 +1146,8 @@ async function loadSeason(startYear) {
       document.getElementById('largest-storm-note').textContent = 'Unable to load';
       console.error(json.error);
 
-      drawChart([], [], []);
+      updatePredictionDisplay(null);
+      drawChart([], [], [], null, null, null);
       if (Number.isFinite(parsedStartYear)) {
         seasonDataCache.delete(parsedStartYear);
         updateContestResults(parsedStartYear, null);
@@ -1432,7 +1433,26 @@ async function loadSeason(startYear) {
       }
     }
 
-    drawChart(labels, dailySnow, seasonalCum, firstSnowDay, lastSnowDay);
+    // Calculate prediction for current/active seasons
+    let prediction = null;
+    const todayDate = new Date();
+    const seasonStartDate = parseISODate(seasonStartStr);
+    const seasonEndDate = parseISODate(seasonEndStr);
+    const isActiveSeason = seasonStartDate && seasonEndDate && todayDate >= seasonStartDate && todayDate <= seasonEndDate;
+
+    if (isActiveSeason) {
+      try {
+        const lastDataDate = determineLastDataDate(json.daily) || todayDate;
+        prediction = await calculateSnowfallPrediction(json, lastDataDate);
+      } catch (err) {
+        console.error('Failed to calculate prediction:', err);
+      }
+    }
+
+    // Update prediction display
+    updatePredictionDisplay(prediction);
+
+    drawChart(labels, dailySnow, seasonalCum, firstSnowDay, lastSnowDay, prediction);
     if (Number.isFinite(parsedStartYear)) {
       seasonDataCache.set(parsedStartYear, json);
       updateContestResults(parsedStartYear, json);
@@ -1453,7 +1473,8 @@ async function loadSeason(startYear) {
     resetAnimatedNumber(document.getElementById('seasonal-total-value'));
     resetAnimatedNumber(document.getElementById('largest-storm-value'));
     document.getElementById('largest-storm-note').textContent = 'Unable to load';
-    drawChart([], [], []);
+    updatePredictionDisplay(null);
+    drawChart([], [], [], null, null, null);
     if (Number.isFinite(parsedStartYear)) {
       seasonDataCache.delete(parsedStartYear);
       updateContestResults(parsedStartYear, null);
@@ -1464,8 +1485,220 @@ async function loadSeason(startYear) {
   }
 }
 
+/**
+ * Update prediction display box
+ * @param {Object} prediction - Prediction data from calculateSnowfallPrediction
+ */
+function updatePredictionDisplay(prediction) {
+  const predictionBox = document.getElementById('prediction-box');
+  const predictionValue = document.getElementById('prediction-value');
+  const predictionNote = document.getElementById('prediction-note');
+
+  if (!predictionBox || !predictionValue || !predictionNote) {
+    return;
+  }
+
+  if (!prediction) {
+    predictionBox.style.display = 'none';
+    return;
+  }
+
+  // Show the box
+  predictionBox.style.display = '';
+
+  // Format the range
+  const lowStr = formatInches(prediction.low);
+  const middleStr = formatInches(prediction.middle);
+  const highStr = formatInches(prediction.high);
+
+  // Animate to middle value
+  animateNumberText(predictionValue, prediction.middle, {
+    format: (val) => formatInches(val),
+    fallback: '--'
+  });
+
+  // Update note with range
+  predictionNote.textContent = `Range: ${lowStr}″–${highStr}″ (25th–75th percentile)`;
+}
+
+/**
+ * Calculate snowfall prediction based on historical data (2012-2024)
+ * Uses remaining average method with percentile ranges
+ * @param {Object} currentSeasonData - Current season data with daily array
+ * @param {Array} historicalSeasons - Array of historical season data objects
+ * @param {Date} currentDate - Current date (or last data date)
+ * @returns {Object} - { low, middle, high, projectionData, currentTotal }
+ */
+async function calculateSnowfallPrediction(currentSeasonData, currentDate) {
+  if (!currentSeasonData || !currentDate) {
+    return null;
+  }
+
+  const currentDateISO = formatISODate(currentDate);
+  if (!currentDateISO) {
+    return null;
+  }
+
+  // Get current season's snowfall to date
+  const dailyData = currentSeasonData.daily || [];
+  let currentTotal = 0;
+  for (const row of dailyData) {
+    if (row.date > currentDateISO) break;
+    const snowVal = typeof row.snow === 'number' ? row.snow : 0;
+    currentTotal += snowVal;
+  }
+
+  // Fetch historical seasons (2012-2024)
+  const historicalYears = [];
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const currentSeasonYear = currentMonth >= 7 ? currentYear : currentYear - 1;
+
+  for (let year = 2012; year <= 2024; year++) {
+    // Don't include current season in historical data
+    if (year !== currentSeasonYear) {
+      historicalYears.push(year);
+    }
+  }
+
+  // Fetch all historical season data in parallel
+  const historicalDataPromises = historicalYears.map(async (year) => {
+    let data = seasonDataCache.get(year);
+    if (!data) {
+      try {
+        const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(year));
+        if (res.ok) {
+          data = await res.json();
+          if (!data.error) {
+            seasonDataCache.set(year, data);
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to fetch historical data for ${year}:`, err);
+      }
+    }
+    return data;
+  });
+
+  const historicalSeasons = (await Promise.all(historicalDataPromises)).filter(Boolean);
+
+  if (!historicalSeasons.length) {
+    return null;
+  }
+
+  // For each historical season, calculate remaining snowfall from current date to end
+  const remainingSnowfalls = [];
+
+  historicalSeasons.forEach(season => {
+    const daily = season.daily || [];
+    let remainingTotal = 0;
+
+    // Get month and day from current date
+    const currentMonth = currentDate.getMonth() + 1; // 1-12
+    const currentDay = currentDate.getDate();
+
+    daily.forEach(row => {
+      const rowDate = parseISODate(row.date);
+      if (!rowDate) return;
+
+      const rowMonth = rowDate.getMonth() + 1;
+      const rowDay = rowDate.getDate();
+
+      // Check if this date is after the current date in the season
+      // Handle year wrap (season goes Jul-Jun)
+      let isAfter = false;
+      if (currentMonth >= 7) { // Jul-Dec
+        if (rowMonth >= 7) {
+          isAfter = (rowMonth > currentMonth) || (rowMonth === currentMonth && rowDay > currentDay);
+        } else { // rowMonth is Jan-Jun (next year)
+          isAfter = true;
+        }
+      } else { // currentMonth is Jan-Jun
+        if (rowMonth >= 7) {
+          isAfter = false; // Already passed
+        } else {
+          isAfter = (rowMonth > currentMonth) || (rowMonth === currentMonth && rowDay > currentDay);
+        }
+      }
+
+      if (isAfter) {
+        const snowVal = typeof row.snow === 'number' ? row.snow : 0;
+        remainingTotal += snowVal;
+      }
+    });
+
+    remainingSnowfalls.push(remainingTotal);
+  });
+
+  if (!remainingSnowfalls.length) {
+    return null;
+  }
+
+  // Sort to calculate percentiles
+  remainingSnowfalls.sort((a, b) => a - b);
+
+  // Calculate percentiles
+  const getPercentile = (arr, percentile) => {
+    const index = (percentile / 100) * (arr.length - 1);
+    const lower = Math.floor(index);
+    const upper = Math.ceil(index);
+    const weight = index - lower;
+
+    if (lower === upper) {
+      return arr[lower];
+    }
+    return arr[lower] * (1 - weight) + arr[upper] * weight;
+  };
+
+  const p25 = getPercentile(remainingSnowfalls, 25);
+  const p50 = getPercentile(remainingSnowfalls, 50);
+  const p75 = getPercentile(remainingSnowfalls, 75);
+
+  // Create projection data arrays (from current date to end of season)
+  const seasonEndISO = currentSeasonData.season_end || currentSeasonData.seasonal_end;
+  const projectionData = {
+    low: [],
+    middle: [],
+    high: [],
+    dates: []
+  };
+
+  // Generate daily projection points
+  const seasonEnd = parseISODate(seasonEndISO);
+  if (seasonEnd) {
+    let projDate = new Date(currentDate);
+    while (projDate <= seasonEnd) {
+      const dateISO = formatISODate(projDate);
+
+      // Calculate days from current date
+      const daysFromNow = Math.round((projDate - currentDate) / (1000 * 60 * 60 * 24));
+
+      // Linear interpolation from current total to final projection
+      const totalDaysInProjection = Math.round((seasonEnd - currentDate) / (1000 * 60 * 60 * 24));
+      const ratio = totalDaysInProjection > 0 ? daysFromNow / totalDaysInProjection : 0;
+
+      projectionData.dates.push(dateISO);
+      projectionData.low.push(currentTotal + (p25 * ratio));
+      projectionData.middle.push(currentTotal + (p50 * ratio));
+      projectionData.high.push(currentTotal + (p75 * ratio));
+
+      // Move to next day
+      projDate.setDate(projDate.getDate() + 1);
+    }
+  }
+
+  return {
+    low: currentTotal + p25,
+    middle: currentTotal + p50,
+    high: currentTotal + p75,
+    currentTotal,
+    projectionStartDate: currentDateISO,
+    projectionData
+  };
+}
+
 // Draw or redraw Chart.js chart
-function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnowDay = null) {
+function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnowDay = null, predictionData = null) {
   const canvas = document.getElementById('snowChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -1590,34 +1823,107 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
     };
   }
 
+  // Build datasets array
+  const datasets = [
+    {
+      type: 'bar',
+      label: 'Daily Snowfall (in)',
+      data: dailySnow,
+      yAxisID: 'yDaily',
+      backgroundColor: barColors,
+      borderColor: barBorderColors,
+      borderWidth: barBorderWidths,
+      borderRadius: 3
+    },
+    {
+      type: 'line',
+      label: 'Season Cumulative (in)',
+      data: seasonalCum,
+      yAxisID: 'yCum',
+      borderColor: 'rgba(56,189,248,1)',
+      backgroundColor: 'rgba(56,189,248,0.18)',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.2,
+      fill: false
+    }
+  ];
+
+  // Add prediction datasets if available
+  if (predictionData && predictionData.projectionData) {
+    const projDates = predictionData.projectionData.dates;
+    const projLow = predictionData.projectionData.low;
+    const projMiddle = predictionData.projectionData.middle;
+    const projHigh = predictionData.projectionData.high;
+
+    // Create sparse arrays aligned with main labels
+    const alignedLow = new Array(labels.length).fill(null);
+    const alignedMiddle = new Array(labels.length).fill(null);
+    const alignedHigh = new Array(labels.length).fill(null);
+
+    projDates.forEach((projDate, idx) => {
+      const labelIndex = labels.indexOf(projDate);
+      if (labelIndex >= 0) {
+        alignedLow[labelIndex] = projLow[idx];
+        alignedMiddle[labelIndex] = projMiddle[idx];
+        alignedHigh[labelIndex] = projHigh[idx];
+      }
+    });
+
+    // High projection line (upper bound) - red/pink shaded area above
+    datasets.push({
+      type: 'line',
+      label: 'Projected High (75th percentile)',
+      data: alignedHigh,
+      yAxisID: 'yCum',
+      borderColor: 'rgba(248,113,113,0.8)',
+      backgroundColor: 'rgba(248,113,113,0.25)',
+      borderWidth: 2,
+      borderDash: [5, 5],
+      pointRadius: 0,
+      tension: 0.3,
+      fill: '+1', // Fill to next dataset (middle)
+      order: 1
+    });
+
+    // Middle projection line (median)
+    datasets.push({
+      type: 'line',
+      label: 'Projected Median (50th percentile)',
+      data: alignedMiddle,
+      yAxisID: 'yCum',
+      borderColor: 'rgba(34,197,94,0.9)',
+      backgroundColor: 'rgba(34,197,94,0)',
+      borderWidth: 2.5,
+      borderDash: [5, 5],
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+      order: 2
+    });
+
+    // Low projection line (lower bound) - blue/purple shaded area below
+    datasets.push({
+      type: 'line',
+      label: 'Projected Low (25th percentile)',
+      data: alignedLow,
+      yAxisID: 'yCum',
+      borderColor: 'rgba(147,197,253,0.8)',
+      backgroundColor: 'rgba(147,197,253,0.25)',
+      borderWidth: 2,
+      borderDash: [5, 5],
+      pointRadius: 0,
+      tension: 0.3,
+      fill: '-1', // Fill to previous dataset (middle)
+      order: 3
+    });
+  }
+
   chartRef = new Chart(ctx, {
     plugins: chartPlugins,
     data: {
       labels,
-      datasets: [
-        {
-          type: 'bar',
-          label: 'Daily Snowfall (in)',
-          data: dailySnow,
-          yAxisID: 'yDaily',
-          backgroundColor: barColors,
-          borderColor: barBorderColors,
-          borderWidth: barBorderWidths,
-          borderRadius: 3
-        },
-        {
-          type: 'line',
-          label: 'Season Cumulative (in)',
-          data: seasonalCum,
-          yAxisID: 'yCum',
-          borderColor: 'rgba(56,189,248,1)',
-          backgroundColor: 'rgba(56,189,248,0.18)',
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.2,
-          fill: false
-        }
-      ]
+      datasets
     },
     options: {
       animation: {
