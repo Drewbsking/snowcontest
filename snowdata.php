@@ -23,6 +23,8 @@ if ($wantCsv) {
     header('Content-Type: application/json');
 }
 header('Access-Control-Allow-Origin: *');
+
+// Note: Cache-Control header will be set later after we determine if season is active
 date_default_timezone_set('America/Detroit');
 
 // -------- CONFIG: lock to your station from the JSON you provided --------
@@ -102,6 +104,15 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECO
             $payload['seasonal_end']   = $payload['seasonal_end']   ?? $payload['season_end'];
             return $payload;
         };
+
+        // Set Cache-Control header before serving cached data
+        if ($isActiveSeason) {
+            // Active season: cache for 15 minutes, must revalidate
+            header('Cache-Control: public, max-age=900, must-revalidate');
+        } else {
+            // Historical season: cache for 1 year, immutable
+            header('Cache-Control: public, max-age=31536000, immutable');
+        }
 
         if ($wantCsv && $cached) {
             // stream CSV from cached JSON
@@ -237,6 +248,15 @@ $payload = [
 
 // Cache it (success only)
 @file_put_contents($cacheFile, json_encode($payload));
+
+// Set Cache-Control header before serving fresh data
+if ($isActiveSeason) {
+    // Active season: cache for 15 minutes, must revalidate
+    header('Cache-Control: public, max-age=900, must-revalidate');
+} else {
+    // Historical season: cache for 1 year, immutable
+    header('Cache-Control: public, max-age=31536000, immutable');
+}
 
 if ($wantCsv) {
     $fn = 'snow_' . $startYear . '.csv';

@@ -271,6 +271,60 @@ body {
   box-shadow: 0 0 0 4px rgba(16,185,129,0.25);
 }
 
+.season-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(52,211,153,0.15);
+  border: 1px solid rgba(52,211,153,0.35);
+  color: rgba(52,211,153,0.95);
+  padding: .5rem .75rem;
+  border-radius: .5rem;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-refresh:hover {
+  background: rgba(52,211,153,0.25);
+  border-color: rgba(52,211,153,0.55);
+  transform: translateY(-1px);
+}
+
+.btn-refresh:active {
+  transform: translateY(0);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-refresh svg {
+  transition: transform 0.6s ease;
+}
+
+.btn-refresh:active:not(:disabled) svg {
+  transform: rotate(360deg);
+}
+
+@media (max-width: 560px) {
+  .btn-refresh-text {
+    display: none;
+  }
+  .btn-refresh {
+    padding: .5rem;
+  }
+}
+
 .season-shadow {
   position: absolute;
   inset: -6px;

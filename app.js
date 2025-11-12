@@ -37,6 +37,111 @@ const guessCache = new Map();
 const seasonDataCache = new Map();
 let currentResultsToken = 0;
 
+// Cache TTL: 15 minutes for active season, 1 hour for recent seasons, infinite for old seasons
+const CACHE_TTL_ACTIVE = 15 * 60 * 1000; // 15 minutes
+const CACHE_TTL_RECENT = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Check if cached entry is still fresh
+ * @param {Object} cacheEntry - { data, timestamp }
+ * @param {number} startYear - Season start year
+ * @returns {boolean} - True if cache is fresh
+ */
+function isCacheFresh(cacheEntry, startYear) {
+  if (!cacheEntry || !cacheEntry.timestamp) return false;
+
+  const now = Date.now();
+  const age = now - cacheEntry.timestamp;
+
+  // Determine current season year
+  const nowDate = new Date();
+  const nowMonth = nowDate.getMonth() + 1; // 1-12
+  const currentSeasonYear = (nowMonth >= 7) ? nowDate.getFullYear() : (nowDate.getFullYear() - 1);
+
+  // Active season: 15 minute TTL
+  if (startYear === currentSeasonYear) {
+    return age < CACHE_TTL_ACTIVE;
+  }
+
+  // Recent seasons (last 2 years): 1 hour TTL
+  if (startYear >= currentSeasonYear - 2) {
+    return age < CACHE_TTL_RECENT;
+  }
+
+  // Historical seasons: never expire (they don't change)
+  return true;
+}
+
+/**
+ * Get data from season cache with freshness check
+ * @param {number} year - Season start year
+ * @returns {Object|null} - Cached data or null if not fresh
+ */
+function getCachedSeasonData(year) {
+  const entry = seasonDataCache.get(year);
+  if (!entry) return null;
+
+  // Handle old cache entries that don't have timestamp (backward compatibility)
+  if (!entry.timestamp) {
+    return entry; // Return as-is, will be replaced with fresh data on next fetch
+  }
+
+  if (isCacheFresh(entry, year)) {
+    return entry.data;
+  }
+
+  // Cache is stale, remove it
+  seasonDataCache.delete(year);
+  return null;
+}
+
+/**
+ * Set data in season cache with timestamp
+ * @param {number} year - Season start year
+ * @param {Object} data - Season data
+ */
+function setCachedSeasonData(year, data) {
+  seasonDataCache.set(year, {
+    data: data,
+    timestamp: Date.now()
+  });
+}
+
+/**
+ * Get data from guess cache with freshness check
+ * @param {number} year - Season start year
+ * @returns {Object|null} - Cached guess data or null if not fresh
+ */
+function getCachedGuessData(year) {
+  const entry = guessCache.get(year);
+  if (!entry) return null;
+
+  // Handle old cache entries that don't have timestamp (backward compatibility)
+  if (!entry.timestamp) {
+    return entry; // Return as-is, will be replaced with fresh data on next fetch
+  }
+
+  if (isCacheFresh(entry, year)) {
+    return entry.data;
+  }
+
+  // Cache is stale, remove it
+  guessCache.delete(year);
+  return null;
+}
+
+/**
+ * Set data in guess cache with timestamp
+ * @param {number} year - Season start year
+ * @param {Object} data - Guess data
+ */
+function setCachedGuessData(year, data) {
+  guessCache.set(year, {
+    data: data,
+    timestamp: Date.now()
+  });
+}
+
 // Reveal control: hide current season guesses until noon ET on Nov 7, 2025
 const GUESS_REVEAL_UTC = '2025-11-07T17:00:00Z'; // 12:00 PM ET
 function isGuessRevealOpen(startYear) {
@@ -877,7 +982,19 @@ async function fetchGuessSheet(config) {
 }
 
 async function fetchSeasonTotals(startYear) {
-  const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(startYear));
+  // Determine if this is the current/active season
+  const now = new Date();
+  const nowMonth = now.getMonth() + 1; // 1-12
+  const currentSeasonYear = (nowMonth >= 7) ? now.getFullYear() : (now.getFullYear() - 1);
+  const isCurrentSeason = parseInt(startYear, 10) === currentSeasonYear;
+
+  const fetchOptions = {};
+  // Force fresh data for current season to avoid stale cache issues on mobile
+  if (isCurrentSeason) {
+    fetchOptions.cache = 'no-cache';
+  }
+
+  const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(startYear), fetchOptions);
   if (!res.ok) {
     throw new Error(`Failed to load snowfall data for ${startYear}`);
   }
@@ -943,11 +1060,11 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   let guesses = [];
   let sanitizedCsvText = '';
   if (revealOpen) {
-    let cached = guessCache.get(parsedYear);
+    let cached = getCachedGuessData(parsedYear);
     if (!cached) {
       try {
         cached = await fetchGuessSheet(config);
-        guessCache.set(parsedYear, cached);
+        setCachedGuessData(parsedYear, cached);
       } catch (err) {
         console.error('Failed loading guesses for season', parsedYear, err);
         if (token !== currentResultsToken) return;
@@ -980,14 +1097,14 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   }
 
   if (seasonDataOverride) {
-    seasonDataCache.set(parsedYear, seasonDataOverride);
+    setCachedSeasonData(parsedYear, seasonDataOverride);
   }
 
-  let seasonData = seasonDataOverride || seasonDataCache.get(parsedYear);
+  let seasonData = seasonDataOverride || getCachedSeasonData(parsedYear);
   if (!seasonData) {
     try {
       seasonData = await fetchSeasonTotals(parsedYear);
-      seasonDataCache.set(parsedYear, seasonData);
+      setCachedSeasonData(parsedYear, seasonData);
     } catch (err) {
       console.error('Failed loading snowfall data for season', parsedYear, err);
       if (token !== currentResultsToken) return;
@@ -1127,10 +1244,22 @@ async function loadSeason(startYear) {
 
   setLoading(true);
 
+  // Determine if this is the current/active season
+  const now = new Date();
+  const nowMonth = now.getMonth() + 1; // 1-12
+  const currentSeasonYear = (nowMonth >= 7) ? now.getFullYear() : (now.getFullYear() - 1);
+  const isCurrentSeason = parsedStartYear === currentSeasonYear;
+
   try {
+    const fetchOptions = { signal };
+    // Force fresh data for current season to avoid stale cache issues on mobile
+    if (isCurrentSeason) {
+      fetchOptions.cache = 'no-cache';
+    }
+
     const res = await fetch(
       'snowdata.php?startYear=' + encodeURIComponent(startYear),
-      { signal }
+      fetchOptions
     );
     const json = await res.json();
 
@@ -1454,10 +1583,12 @@ async function loadSeason(startYear) {
 
     drawChart(labels, dailySnow, seasonalCum, firstSnowDay, lastSnowDay, prediction);
     if (Number.isFinite(parsedStartYear)) {
-      seasonDataCache.set(parsedStartYear, json);
+      setCachedSeasonData(parsedStartYear, json);
       updateContestResults(parsedStartYear, json);
+      updateLastUpdatedTimestamp(parsedStartYear);
     } else {
       updateContestResults(startYear, json);
+      updateLastUpdatedTimestamp(parseInt(startYear, 10));
     }
     setLoading(false);
 
@@ -1482,6 +1613,36 @@ async function loadSeason(startYear) {
       updateContestResults(startYear, null);
     }
     setLoading(false);
+  }
+}
+
+/**
+ * Update "Last updated" timestamp display
+ * @param {number} startYear - Season start year
+ */
+function updateLastUpdatedTimestamp(startYear) {
+  const lastUpdatedEl = document.getElementById('last-updated');
+  const lastUpdatedSepEl = document.getElementById('last-updated-sep');
+
+  if (!lastUpdatedEl) return;
+
+  // Only show for current season
+  const now = new Date();
+  const nowMonth = now.getMonth() + 1; // 1-12
+  const currentSeasonYear = (nowMonth >= 7) ? now.getFullYear() : (now.getFullYear() - 1);
+
+  if (startYear === currentSeasonYear) {
+    const timeStr = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    lastUpdatedEl.textContent = `Updated: ${timeStr}`;
+    lastUpdatedEl.style.display = '';
+    if (lastUpdatedSepEl) lastUpdatedSepEl.style.display = '';
+  } else {
+    lastUpdatedEl.style.display = 'none';
+    if (lastUpdatedSepEl) lastUpdatedSepEl.style.display = 'none';
   }
 }
 
@@ -1563,14 +1724,14 @@ async function calculateSnowfallPrediction(currentSeasonData, currentDate) {
 
   // Fetch all historical season data in parallel
   const historicalDataPromises = historicalYears.map(async (year) => {
-    let data = seasonDataCache.get(year);
+    let data = getCachedSeasonData(year);
     if (!data) {
       try {
         const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(year));
         if (res.ok) {
           data = await res.json();
           if (!data.error) {
-            seasonDataCache.set(year, data);
+            setCachedSeasonData(year, data);
           }
         }
       } catch (err) {
@@ -2022,6 +2183,51 @@ seasonSelectEl.addEventListener('change', (e) => {
   loadSeason(selectedYear);
   syncDataLinks(parseInt(selectedYear, 10));
 });
+
+// refresh button to clear cache and reload current season
+const refreshButtonEl = document.getElementById('refreshButton');
+if (refreshButtonEl) {
+  refreshButtonEl.addEventListener('click', async () => {
+    const selectedYear = seasonSelectEl.value;
+    if (!selectedYear) return;
+
+    const parsedYear = parseInt(selectedYear, 10);
+    if (!Number.isFinite(parsedYear)) return;
+
+    // Disable button and show feedback
+    refreshButtonEl.disabled = true;
+    const originalText = refreshButtonEl.querySelector('.btn-refresh-text')?.textContent || 'Refresh';
+    const textEl = refreshButtonEl.querySelector('.btn-refresh-text');
+    if (textEl) textEl.textContent = 'Refreshing...';
+
+    try {
+      // Clear caches for this season
+      seasonDataCache.delete(parsedYear);
+      guessCache.delete(parsedYear);
+
+      // Reload the season (will fetch fresh data)
+      await Promise.all([
+        updateContestResults(parsedYear),
+        loadSeason(parsedYear)
+      ]);
+
+      // Show success feedback briefly
+      if (textEl) textEl.textContent = 'Refreshed!';
+      setTimeout(() => {
+        if (textEl) textEl.textContent = originalText;
+        refreshButtonEl.disabled = false;
+      }, 1000);
+
+    } catch (err) {
+      console.error('Refresh failed:', err);
+      if (textEl) textEl.textContent = 'Error';
+      setTimeout(() => {
+        if (textEl) textEl.textContent = originalText;
+        refreshButtonEl.disabled = false;
+      }, 2000);
+    }
+  });
+}
 
 function syncDataLinks(year) {
   const jsonLink = document.getElementById('json-link');
