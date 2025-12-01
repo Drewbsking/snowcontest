@@ -170,6 +170,11 @@ const guessStatEls = {
   highNote: document.getElementById('guess-high-note')
 };
 
+const contestantCountEls = {
+  value: document.getElementById('contestant-count-value'),
+  note: document.getElementById('contestant-count-note')
+};
+
 const guessCsvLinkEl = document.getElementById('guess-csv-link');
 
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
@@ -359,8 +364,31 @@ function setGuessStatsMessage(message) {
   guessStatEls.lowNote.textContent = message;
   resetAnimatedNumber(guessStatEls.highValue);
   guessStatEls.highNote.textContent = message;
+  setContestantCountMessage(message);
   renderGuessHistogram([]);
   renderHolidayGuessChart([], null);
+}
+
+function setContestantCountMessage(message) {
+  if (!contestantCountEls.value) return;
+  resetAnimatedNumber(contestantCountEls.value);
+  if (contestantCountEls.note) contestantCountEls.note.textContent = message;
+}
+
+function setContestantCountData(guesses) {
+  if (!contestantCountEls.value) return;
+  const total = Array.isArray(guesses) ? guesses.length : 0;
+  if (!total) {
+    setContestantCountMessage('No guesses submitted yet.');
+    return;
+  }
+  animateNumberText(contestantCountEls.value, total, {
+    format: (val) => Math.round(val).toString(),
+    fallback: '--'
+  });
+  if (contestantCountEls.note) {
+    contestantCountEls.note.textContent = `${total === 1 ? 'contestant' : 'contestants'} this season`;
+  }
 }
 
 function setGuessStatsData(guesses, startYear) {
@@ -370,6 +398,7 @@ function setGuessStatsData(guesses, startYear) {
     setGuessStatsMessage('No guesses submitted yet.');
     return;
   }
+  setContestantCountData(valid);
 
   const sum = valid.reduce((acc, entry) => acc + entry.guess, 0);
   const avg = sum / valid.length;
@@ -793,11 +822,13 @@ function renderHolidayResults(startYear, daily, guesses, revealOpen) {
   const parsedYear = parseInt(startYear, 10);
   if (!Number.isFinite(parsedYear)) {
     holidayResultEl.textContent = 'Select a season to see holiday calls.';
+    setContestantCountMessage('Select a season to see contestants.');
     return;
   }
 
   if (!revealOpen) {
     holidayResultEl.textContent = `Holiday picks hidden until ${getRevealLabelET()}.`;
+    setContestantCountMessage(`Contestants hidden until ${getRevealLabelET()}.`);
     return;
   }
 
@@ -809,11 +840,13 @@ function renderHolidayResults(startYear, daily, guesses, revealOpen) {
   const outcomes = computeHolidayOutcomes(parsedYear, daily);
   if (!outcomes.length) {
     holidayResultEl.textContent = 'Holiday calendar unavailable for this season.';
+    setContestantCountMessage('Contestant count unavailable.');
     return;
   }
 
   if (!Array.isArray(guesses) || !guesses.length) {
     holidayResultEl.textContent = 'No holiday guesses submitted yet.';
+    setContestantCountMessage('No guesses submitted yet.');
     return;
   }
 
