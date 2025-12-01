@@ -5,6 +5,7 @@ let holidayGuessChart = null;
 let guessCsvObjectUrl = null;
 
 const MEASURABLE_SNOW_THRESHOLD = 0.1;
+const HOLIDAY_POT_PER_HOLIDAY = 10; // dollars/points split evenly among correct "snow" guesses per holiday
 
 function setLoading(isLoading) {
   const overlay = document.getElementById('loading-overlay');
@@ -678,6 +679,13 @@ function formatInches(value) {
   return str;
 }
 
+function formatMoney(value) {
+  if (!Number.isFinite(value)) return '$0.00';
+  const rounded = Math.round(value * 100) / 100;
+  const str = rounded.toFixed(2);
+  return `$${str.replace(/\.00$/, '.00')}`;
+}
+
 function escapeHtml(value) {
   if (value == null) return '';
   return String(value).replace(/[&<>"']/g, (ch) => {
@@ -883,6 +891,80 @@ function renderHolidayResults(startYear, daily, guesses, revealOpen) {
   }).join('');
 
   holidayResultEl.innerHTML = `<div class="holiday-result-list">${rowsHtml}</div>`;
+}
+
+function setHolidayPayoutMessage(message) {
+  const el = document.getElementById('holiday-payout-body');
+  if (!el) return;
+  el.textContent = message;
+}
+
+function renderHolidayPayouts(startYear, daily, guesses, revealOpen) {
+  const payoutEl = document.getElementById('holiday-payout-body');
+  if (!payoutEl) return;
+
+  const parsedYear = parseInt(startYear, 10);
+  if (!Number.isFinite(parsedYear)) {
+    setHolidayPayoutMessage('Select a season to view holiday payouts.');
+    return;
+  }
+
+  if (!revealOpen) {
+    setHolidayPayoutMessage(`Holiday payouts hidden until ${getRevealLabelET()}.`);
+    return;
+  }
+
+  if (!Array.isArray(daily) || !daily.length) {
+    setHolidayPayoutMessage('Holiday snowfall data unavailable for this season.');
+    return;
+  }
+
+  if (!Array.isArray(guesses) || !guesses.length) {
+    setHolidayPayoutMessage('No guesses submitted yet.');
+    return;
+  }
+
+  const outcomes = computeHolidayOutcomes(parsedYear, daily);
+  if (!outcomes.length) {
+    setHolidayPayoutMessage('Holiday calendar unavailable for this season.');
+    return;
+  }
+
+  const winnings = new Map(); // name -> { amount, wins }
+
+  outcomes.forEach(outcome => {
+    if (outcome.outcome !== true) return; // payouts only when measurable snow occurred
+    const winners = (guesses || []).filter(entry => entry?.holidays && entry.holidays[outcome.key] === true);
+    if (!winners.length) return; // pot unclaimed
+    const share = HOLIDAY_POT_PER_HOLIDAY / winners.length;
+    winners.forEach(entry => {
+      const name = entry?.name ? String(entry.name).trim() || 'Anonymous' : 'Anonymous';
+      const prev = winnings.get(name) || { amount: 0, wins: 0 };
+      winnings.set(name, { amount: prev.amount + share, wins: prev.wins + 1 });
+    });
+  });
+
+  if (!winnings.size) {
+    setHolidayPayoutMessage('No holiday payouts yet.');
+    return;
+  }
+
+  const rows = Array.from(winnings.entries())
+    .map(([name, info]) => ({ name, amount: info.amount, wins: info.wins }))
+    .sort((a, b) => (b.amount - a.amount) || a.name.localeCompare(b.name));
+
+  const rowsHtml = rows.map(row => {
+    const money = formatMoney(row.amount);
+    const winLabel = row.wins === 1 ? 'holiday win' : 'holiday wins';
+    return `
+      <div class="holiday-result-row">
+        <div class="holiday-result-label">${escapeHtml(row.name)}</div>
+        <div class="holiday-result-meta">${money} · ${row.wins} ${winLabel}</div>
+      </div>
+    `;
+  }).join('');
+
+  payoutEl.innerHTML = `<div class="holiday-result-list">${rowsHtml}</div>`;
 }
 
 function computeWindowTotal(daily, startIso, endIso) {
@@ -1157,6 +1239,7 @@ function pickAbsoluteClosestResult(guesses, target) {
 async function updateContestResults(startYearInput, seasonDataOverride) {
   const seasonalEl = document.getElementById('seasonal-result-body');
   const holidayResultEl = document.getElementById('holiday-result-body');
+  const holidayPayoutEl = document.getElementById('holiday-payout-body');
 
   if (!seasonalEl) {
     return;
@@ -1165,6 +1248,9 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   setGuessStatsMessage('Loading guesses…');
   if (holidayResultEl) {
     holidayResultEl.textContent = 'Loading holiday results…';
+  }
+  if (holidayPayoutEl) {
+    holidayPayoutEl.textContent = 'Loading holiday payouts…';
   }
 
   const token = ++currentResultsToken;
@@ -1176,6 +1262,9 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     setGuessStatsMessage('Select a season to view guesses.');
     if (holidayResultEl) {
       holidayResultEl.textContent = 'Select a season to see holiday calls.';
+    }
+    if (holidayPayoutEl) {
+      holidayPayoutEl.textContent = 'Select a season to view holiday payouts.';
     }
     return;
   }
@@ -1221,6 +1310,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
     // Hide guesses until reveal time
     setGuessStatsMessage(`Guesses hidden until ${getRevealLabelET()}.`);
     disableGuessCsvLink();
+    setHolidayPayoutMessage(`Holiday payouts hidden until ${getRevealLabelET()}.`);
   }
 
   if (seasonDataOverride) {
@@ -1239,6 +1329,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
       if (holidayResultEl) {
         holidayResultEl.textContent = 'Unable to load holiday results right now.';
       }
+      setHolidayPayoutMessage('Unable to load holiday payouts right now.');
       return;
     }
   }
@@ -1295,6 +1386,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   }
 
   renderHolidayResults(parsedYear, daily, guesses, revealOpen);
+  renderHolidayPayouts(parsedYear, daily, guesses, revealOpen);
   seasonalEl.innerHTML = seasonalMessage;
 
   const footerUpdatedEl = document.getElementById('data-updated');
