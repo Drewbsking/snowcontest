@@ -1014,6 +1014,36 @@ body {
   color: var(--text-dim);
 }
 
+.holiday-result-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.holiday-result-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid rgba(71,85,105,0.45);
+}
+
+.holiday-result-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.holiday-result-label {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: .82rem;
+}
+
+.holiday-result-meta,
+.holiday-result-winners {
+  font-size: .8rem;
+  color: var(--text-dim);
+}
+
 .result-highlight {
   font-weight: 500;
   color: rgba(248,113,113,1);

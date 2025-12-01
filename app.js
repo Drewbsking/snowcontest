@@ -4,6 +4,8 @@ let guessHistogramChart = null;
 let holidayGuessChart = null;
 let guessCsvObjectUrl = null;
 
+const MEASURABLE_SNOW_THRESHOLD = 0.1;
+
 function setLoading(isLoading) {
   const overlay = document.getElementById('loading-overlay');
   overlay.style.display = isLoading ? 'flex' : 'none';
@@ -734,7 +736,7 @@ function renderHolidayBadges(startYear, daily) {
   const container = document.getElementById('holiday-badges');
   if (!container) return;
   container.innerHTML = '';
-  const measurableThreshold = 0.1;
+  const measurableThreshold = MEASURABLE_SNOW_THRESHOLD;
   const holidays = getHolidayListForSeason(parseInt(startYear, 10));
 
   holidays.forEach(h => {
@@ -763,6 +765,91 @@ function renderHolidayBadges(startYear, daily) {
 
     container.appendChild(badge);
   });
+}
+
+function computeHolidayOutcomes(startYear, daily) {
+  const holidays = getHolidayListForSeason(parseInt(startYear, 10));
+  const today = new Date();
+
+  return holidays.map(h => {
+    const dateObj = parseISODate(h.iso);
+    const row = Array.isArray(daily) ? daily.find(r => r && r.date === h.iso) : null;
+    const hasSnowValue = typeof row?.snow === 'number' && !Number.isNaN(row.snow);
+    const amount = hasSnowValue ? row.snow : null;
+    const status = (() => {
+      if (hasSnowValue) return 'resolved';
+      if (dateObj && today < dateObj) return 'upcoming';
+      return 'missing';
+    })();
+    const outcome = hasSnowValue ? (amount >= MEASURABLE_SNOW_THRESHOLD) : null;
+    return { ...h, dateObj, amount, status, outcome };
+  });
+}
+
+function renderHolidayResults(startYear, daily, guesses, revealOpen) {
+  const holidayResultEl = document.getElementById('holiday-result-body');
+  if (!holidayResultEl) return;
+
+  const parsedYear = parseInt(startYear, 10);
+  if (!Number.isFinite(parsedYear)) {
+    holidayResultEl.textContent = 'Select a season to see holiday calls.';
+    return;
+  }
+
+  if (!revealOpen) {
+    holidayResultEl.textContent = `Holiday picks hidden until ${getRevealLabelET()}.`;
+    return;
+  }
+
+  if (!Array.isArray(daily) || !daily.length) {
+    holidayResultEl.textContent = 'Holiday snowfall data unavailable for this season.';
+    return;
+  }
+
+  const outcomes = computeHolidayOutcomes(parsedYear, daily);
+  if (!outcomes.length) {
+    holidayResultEl.textContent = 'Holiday calendar unavailable for this season.';
+    return;
+  }
+
+  if (!Array.isArray(guesses) || !guesses.length) {
+    holidayResultEl.textContent = 'No holiday guesses submitted yet.';
+    return;
+  }
+
+  const rowsHtml = outcomes.map(outcome => {
+    const dateLabel = formatDateLabel(outcome.dateObj);
+    const amountLabel = Number.isFinite(outcome.amount) ? `${formatInches(outcome.amount)}"` : '—';
+    const statusLabel = (() => {
+      if (outcome.outcome === true) return `Snow (${amountLabel})`;
+      if (outcome.outcome === false) return `No measurable snow (${amountLabel})`;
+      if (outcome.status === 'upcoming') return `Pending${dateLabel ? ` (${dateLabel})` : ''}`;
+      return 'Snow data unavailable';
+    })();
+
+    const correctEntries = outcome.outcome == null
+      ? []
+      : (guesses || []).filter(entry => entry?.holidays && entry.holidays[outcome.key] === outcome.outcome);
+
+    const winnerLabel = (() => {
+      if (outcome.status === 'upcoming') return 'Awaiting holiday';
+      if (outcome.outcome == null) return 'Unable to grade guesses';
+      if (!correctEntries.length) return 'No correct calls';
+      const names = formatGuessNameList(correctEntries);
+      if (!names || names === '—') return 'No correct calls';
+      return `Correct: <span class="result-highlight">${escapeHtml(names)}</span>`;
+    })();
+
+    return `
+      <div class="holiday-result-row">
+        <div class="holiday-result-label">${escapeHtml(outcome.label)}</div>
+        <div class="holiday-result-meta">${escapeHtml(statusLabel)}</div>
+        <div class="holiday-result-winners">${winnerLabel}</div>
+      </div>
+    `;
+  }).join('');
+
+  holidayResultEl.innerHTML = `<div class="holiday-result-list">${rowsHtml}</div>`;
 }
 
 function computeWindowTotal(daily, startIso, endIso) {
@@ -1036,12 +1123,16 @@ function pickAbsoluteClosestResult(guesses, target) {
 
 async function updateContestResults(startYearInput, seasonDataOverride) {
   const seasonalEl = document.getElementById('seasonal-result-body');
+  const holidayResultEl = document.getElementById('holiday-result-body');
 
   if (!seasonalEl) {
     return;
   }
 
   setGuessStatsMessage('Loading guesses…');
+  if (holidayResultEl) {
+    holidayResultEl.textContent = 'Loading holiday results…';
+  }
 
   const token = ++currentResultsToken;
   const parsedYear = parseInt(startYearInput, 10);
@@ -1050,6 +1141,9 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   if (!Number.isFinite(parsedYear)) {
     seasonalEl.textContent = 'Select a season above to view standings.';
     setGuessStatsMessage('Select a season to view guesses.');
+    if (holidayResultEl) {
+      holidayResultEl.textContent = 'Select a season to see holiday calls.';
+    }
     return;
   }
 
@@ -1109,6 +1203,9 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
       console.error('Failed loading snowfall data for season', parsedYear, err);
       if (token !== currentResultsToken) return;
       seasonalEl.innerHTML = 'Unable to load snowfall totals right now.';
+      if (holidayResultEl) {
+        holidayResultEl.textContent = 'Unable to load holiday results right now.';
+      }
       return;
     }
   }
@@ -1163,6 +1260,8 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   if (!seasonalMessage) {
     seasonalMessage = 'No information available for this season.';
   }
+
+  renderHolidayResults(parsedYear, daily, guesses, revealOpen);
   seasonalEl.innerHTML = seasonalMessage;
 
   const footerUpdatedEl = document.getElementById('data-updated');
@@ -1325,7 +1424,7 @@ async function loadSeason(startYear) {
     const labels = [];
     const dailySnow = [];
     const seasonalCum = [];
-    const measurableThreshold = 0.1;
+    const measurableThreshold = MEASURABLE_SNOW_THRESHOLD;
     const heavyThreshold = 2.0;
     let heavyDayCount = 0;
     let streakLength = 0;
