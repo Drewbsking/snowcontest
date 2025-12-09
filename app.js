@@ -44,6 +44,25 @@ let currentResultsToken = 0;
 const CACHE_TTL_ACTIVE = 15 * 60 * 1000; // 15 minutes
 const CACHE_TTL_RECENT = 60 * 60 * 1000; // 1 hour
 
+// Reusable canvas pattern to shade missing ACIS days
+let missingFillPattern = null;
+function getMissingPattern(ctx) {
+  if (missingFillPattern) return missingFillPattern;
+  const patternCanvas = document.createElement('canvas');
+  patternCanvas.width = patternCanvas.height = 8;
+  const pctx = patternCanvas.getContext('2d');
+  pctx.fillStyle = 'rgba(251,191,36,0.16)'; // soft amber base
+  pctx.fillRect(0, 0, 8, 8);
+  pctx.strokeStyle = 'rgba(217,119,6,0.55)'; // darker amber stripes
+  pctx.lineWidth = 1;
+  pctx.beginPath();
+  pctx.moveTo(0, 8);
+  pctx.lineTo(8, 0);
+  pctx.stroke();
+  missingFillPattern = ctx.createPattern(patternCanvas, 'repeat');
+  return missingFillPattern;
+}
+
 /**
  * Check if cached entry is still fresh
  * @param {Object} cacheEntry - { data, timestamp }
@@ -1500,7 +1519,7 @@ async function loadSeason(startYear) {
       console.error(json.error);
 
       updatePredictionDisplay(null);
-      drawChart([], [], [], null, null, null);
+      drawChart([], [], [], null, null, null, []);
       if (Number.isFinite(parsedStartYear)) {
         seasonDataCache.delete(parsedStartYear);
         updateContestResults(parsedStartYear, null);
@@ -1563,10 +1582,15 @@ async function loadSeason(startYear) {
     let lastSnowDay = null;
     let sumMeasurableSnow = 0;
     let countMeasurableDays = 0;
+    const missingDates = new Set();
 
     json.daily.forEach(row => {
       const day = parseISODate(row.date);
       const snowValue = row.snow === null ? null : row.snow;
+
+      if (snowValue === null) {
+        missingDates.add(row.date);
+      }
 
       labels.push(row.date);
       dailySnow.push(snowValue);
@@ -1805,7 +1829,7 @@ async function loadSeason(startYear) {
     // Update prediction display
     updatePredictionDisplay(prediction);
 
-    drawChart(labels, dailySnow, seasonalCum, firstSnowDay, lastSnowDay, prediction);
+    drawChart(labels, dailySnow, seasonalCum, firstSnowDay, lastSnowDay, prediction, missingDates);
     if (Number.isFinite(parsedStartYear)) {
       setCachedSeasonData(parsedStartYear, json);
       updateContestResults(parsedStartYear, json);
@@ -1829,7 +1853,7 @@ async function loadSeason(startYear) {
     resetAnimatedNumber(document.getElementById('largest-storm-value'));
     document.getElementById('largest-storm-note').textContent = 'Unable to load';
     updatePredictionDisplay(null);
-    drawChart([], [], [], null, null, null);
+    drawChart([], [], [], null, null, null, []);
     if (Number.isFinite(parsedStartYear)) {
       seasonDataCache.delete(parsedStartYear);
       updateContestResults(parsedStartYear, null);
@@ -2083,7 +2107,7 @@ async function calculateSnowfallPrediction(currentSeasonData, currentDate) {
 }
 
 // Draw or redraw Chart.js chart
-function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnowDay = null, predictionData = null) {
+function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnowDay = null, predictionData = null, missingDates = []) {
   const canvas = document.getElementById('snowChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -2100,6 +2124,17 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
     xAxisMin = formatISODate(firstSnowDay);
     xAxisMax = formatISODate(lastSnowDay);
   }
+
+  const missingDateSet = new Set(
+    missingDates instanceof Set ? missingDates : (Array.isArray(missingDates) ? missingDates : [])
+  );
+  const missingIndices = [];
+  labels.forEach((label, idx) => {
+    if (missingDateSet.has(label)) {
+      missingIndices.push(idx);
+    }
+  });
+  const missingPattern = missingIndices.length ? getMissingPattern(ctx) : null;
 
   const barColors = [];
   const barBorderColors = [];
@@ -2155,13 +2190,61 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
   if (resolvedZoomPlugin) {
     chartPlugins.push(resolvedZoomPlugin);
   }
+  if (missingIndices.length) {
+    const missingShadingPlugin = {
+      id: 'missingDataHighlight',
+      beforeDatasetsDraw(chart) {
+        const { ctx: pluginCtx, chartArea, scales } = chart;
+        const xScale = scales?.x;
+        if (!chartArea || !xScale) return;
+        const areaHeight = chartArea.bottom - chartArea.top;
+        if (areaHeight <= 0) return;
+
+        const resolveBandWidth = () => {
+          if (labels.length > 1 && typeof xScale.getPixelForValue === 'function') {
+            const step = Math.abs(xScale.getPixelForValue(1) - xScale.getPixelForValue(0));
+            if (Number.isFinite(step) && step > 0) return step;
+          }
+          if (labels.length > 1 && typeof xScale.getPixelForTick === 'function') {
+            const step = Math.abs(xScale.getPixelForTick(1) - xScale.getPixelForTick(0));
+            if (Number.isFinite(step) && step > 0) return step;
+          }
+          return labels.length ? (chartArea.width / labels.length) : chartArea.width;
+        };
+
+        const bandWidth = resolveBandWidth();
+        const fallbackWidth = labels.length ? (chartArea.width / labels.length) : chartArea.width;
+
+        pluginCtx.save();
+        pluginCtx.fillStyle = missingPattern || 'rgba(217,119,6,0.18)';
+        pluginCtx.strokeStyle = 'rgba(180,83,9,0.45)';
+        pluginCtx.lineWidth = 1;
+
+        missingIndices.forEach((idx) => {
+          const center = xScale.getPixelForValue(idx);
+          if (!Number.isFinite(center)) return;
+          const width = Number.isFinite(bandWidth) && bandWidth > 0 ? bandWidth : fallbackWidth;
+          const left = center - width / 2;
+          pluginCtx.fillRect(left, chartArea.top, width, areaHeight);
+          pluginCtx.strokeRect(left, chartArea.top, width, areaHeight);
+        });
+
+        pluginCtx.restore();
+      }
+    };
+    chartPlugins.push(missingShadingPlugin);
+  }
 
   const animationDelay = (context) => {
     if (!context || context.type !== 'data' || context.mode !== 'default') {
       return 0;
     }
     const datasetIndex = context.datasetIndex ?? 0;
-    const base = datasetIndex === 0 ? 20 : 35;
+    const dataset = context.chart?.data?.datasets?.[datasetIndex];
+    if (dataset && dataset.label === 'Missing data (ACIS)') {
+      return 0;
+    }
+    const base = (dataset && dataset.label === 'Daily Snowfall (in)') ? 20 : 35;
     return context.dataIndex * base;
   };
 
@@ -2176,6 +2259,13 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
         title: (items) => {
           if (items.length > 0) {
             return items[0].label;
+          }
+        },
+        beforeBody: (items) => {
+          const idx = items?.[0]?.dataIndex;
+          if (idx == null) return;
+          if (missingDateSet.has(labels[idx])) {
+            return ['ACIS reports missing data for this date.'];
           }
         }
       }
@@ -2208,8 +2298,23 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
     };
   }
 
+  const missingLegendDataset = missingIndices.length ? {
+    type: 'bar',
+    label: 'Missing data (ACIS)',
+    data: new Array(labels.length).fill(null),
+    yAxisID: 'yDaily',
+    backgroundColor: missingPattern || 'rgba(217,119,6,0.2)',
+    borderColor: 'rgba(180,83,9,0.55)',
+    borderWidth: 0,
+    barPercentage: 1,
+    categoryPercentage: 1,
+    order: -2,
+    stack: 'missing-legend'
+  } : null;
+
   // Build datasets array
   const datasets = [
+    missingLegendDataset,
     {
       type: 'bar',
       label: 'Daily Snowfall (in)',
@@ -2232,7 +2337,7 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
       tension: 0.2,
       fill: false
     }
-  ];
+  ].filter(Boolean);
 
   // Add prediction datasets if available
   if (predictionData && predictionData.projectionData) {
@@ -2348,6 +2453,10 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
           max: xAxisMax,
           ticks: {
             maxTicksLimit: 10,
+            maxRotation: 90,
+            minRotation: 90,
+            align: 'start',
+            crossAlign: 'far',
             color: 'rgba(148,163,184,1)' // slate-400
           },
           grid: {
