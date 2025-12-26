@@ -318,14 +318,16 @@ function setGuessCsvDownloadData(csvText, fileName) {
   guessCsvLinkEl.removeAttribute('aria-disabled');
 }
 
-function formatGuessNameList(entries) {
+function formatGuessNameList(entries, options = {}) {
+  const { limit = 3 } = options;
   const names = (entries || [])
     .map(entry => (entry && entry.name ? entry.name.trim() : 'Unknown'))
     .filter((name, idx, arr) => name && arr.indexOf(name) === idx);
   if (!names.length) return '—';
-  if (names.length > 3) {
-    const remaining = names.length - 3;
-    return `${names.slice(0, 3).join(', ')} +${remaining} more`;
+  const shouldLimit = Number.isFinite(limit) && limit > 0;
+  if (shouldLimit && names.length > limit) {
+    const remaining = names.length - limit;
+    return `${names.slice(0, limit).join(', ')} +${remaining} more`;
   }
   return names.join(', ');
 }
@@ -895,7 +897,7 @@ function renderHolidayResults(startYear, daily, guesses, revealOpen) {
       if (outcome.status === 'upcoming') return 'Awaiting holiday';
       if (outcome.outcome == null) return 'Unable to grade guesses';
       if (!correctEntries.length) return 'No correct calls';
-      const names = formatGuessNameList(correctEntries);
+      const names = formatGuessNameList(correctEntries, { limit: Infinity });
       if (!names || names === '—') return 'No correct calls';
       return `Correct: <span class="result-highlight">${escapeHtml(names)}</span>`;
     })();
@@ -952,8 +954,8 @@ function renderHolidayPayouts(startYear, daily, guesses, revealOpen) {
   const winnings = new Map(); // name -> { amount, wins }
 
   outcomes.forEach(outcome => {
-    if (outcome.outcome !== true) return; // payouts only when measurable snow occurred
-    const winners = (guesses || []).filter(entry => entry?.holidays && entry.holidays[outcome.key] === true);
+    if (outcome.outcome == null) return; // skip if the holiday result is unresolved
+    const winners = (guesses || []).filter(entry => entry?.holidays && entry.holidays[outcome.key] === outcome.outcome);
     if (!winners.length) return; // pot unclaimed
     const share = HOLIDAY_POT_PER_HOLIDAY / winners.length;
     winners.forEach(entry => {
