@@ -526,28 +526,32 @@ function renderTotalsChart(records) {
 
   sorted.forEach((rec) => {
     const total = rec.totalSnow ?? 0;
-    const bar = document.createElement('div');
-    bar.className = 'record-chart-bar';
-    bar.setAttribute('role', 'listitem');
-    bar.setAttribute('aria-label', `${rec.label}: ${formatInches(total)} inches`);
-
-    const fill = document.createElement('div');
-    fill.className = 'record-chart-bar-fill';
-    const percent = Math.max((total / maxTotal) * 100, 6);
-    fill.style.height = `${percent}%`;
+    const row = document.createElement('div');
+    row.className = 'record-chart-row';
+    row.setAttribute('role', 'listitem');
+    row.setAttribute('aria-label', `${rec.label}: ${formatInches(total)} inches`);
 
     const label = document.createElement('div');
     label.className = 'record-chart-bar-label';
     label.textContent = rec.label;
 
+    const track = document.createElement('div');
+    track.className = 'record-chart-bar-track';
+
+    const fill = document.createElement('div');
+    fill.className = 'record-chart-bar-fill';
+    const percent = total > 0 ? Math.max((total / maxTotal) * 100, 6) : 0;
+    fill.style.width = `${percent}%`;
+
     const value = document.createElement('div');
     value.className = 'record-chart-bar-value';
     value.textContent = `${formatInches(total)}"`;
 
-    bar.appendChild(value);
-    bar.appendChild(fill);
-    bar.appendChild(label);
-    totalsChartEl.appendChild(bar);
+    track.appendChild(fill);
+    row.appendChild(label);
+    row.appendChild(track);
+    row.appendChild(value);
+    totalsChartEl.appendChild(row);
   });
 }
 
