@@ -10,6 +10,7 @@ const summaryEl = document.getElementById('record-summary');
 const loadingEl = document.getElementById('records-loading');
 const tableBodyEl = document.querySelector('#season-record-table tbody');
 const footerUpdatedEl = document.getElementById('data-updated');
+const totalsChartEl = document.getElementById('season-total-chart');
 
 function seasonLabel(year) {
   return `${year}-${year + 1}`;
@@ -505,6 +506,50 @@ function renderTable(records) {
   });
 }
 
+function renderTotalsChart(records) {
+  if (!totalsChartEl) return;
+  totalsChartEl.innerHTML = '';
+  const sorted = [...records].sort((a, b) => a.startYear - b.startYear);
+  const maxTotal = sorted.reduce((max, rec) => {
+    const total = rec.totalSnow ?? 0;
+    return total > max ? total : max;
+  }, 0);
+
+  if (!maxTotal) {
+    const empty = document.createElement('div');
+    empty.className = 'record-chart-empty';
+    empty.textContent = 'No snowfall totals available yet.';
+    totalsChartEl.appendChild(empty);
+    return;
+  }
+
+  sorted.forEach((rec) => {
+    const total = rec.totalSnow ?? 0;
+    const bar = document.createElement('div');
+    bar.className = 'record-chart-bar';
+    bar.setAttribute('role', 'listitem');
+    bar.setAttribute('aria-label', `${rec.label}: ${formatInches(total)} inches`);
+
+    const fill = document.createElement('div');
+    fill.className = 'record-chart-bar-fill';
+    const percent = Math.max((total / maxTotal) * 100, 4);
+    fill.style.height = `${percent}%`;
+
+    const value = document.createElement('div');
+    value.className = 'record-chart-bar-value';
+    value.textContent = `${formatInches(total)}"`;
+
+    const label = document.createElement('div');
+    label.className = 'record-chart-bar-label';
+    label.textContent = rec.label;
+
+    bar.appendChild(fill);
+    bar.appendChild(value);
+    bar.appendChild(label);
+    totalsChartEl.appendChild(bar);
+  });
+}
+
 async function fetchSeasonData(startYear) {
   const res = await fetch(`snowdata.php?startYear=${encodeURIComponent(startYear)}`);
   if (!res.ok) {
@@ -545,6 +590,7 @@ async function initRecords() {
 
     renderSummary(records);
     renderTable(records);
+    renderTotalsChart(records);
 
     if (footerUpdatedEl) {
       const latestDate = records.reduce((best, rec) => {
