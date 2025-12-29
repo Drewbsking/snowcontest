@@ -11,6 +11,7 @@ const loadingEl = document.getElementById('records-loading');
 const tableBodyEl = document.querySelector('#season-record-table tbody');
 const footerUpdatedEl = document.getElementById('data-updated');
 const totalsChartEl = document.getElementById('season-total-chart');
+const totalsDateEl = document.getElementById('season-total-date');
 
 function seasonLabel(year) {
   return `${year}-${year + 1}`;
@@ -550,6 +551,18 @@ function renderTotalsChart(records) {
   });
 }
 
+function renderTotalsDate() {
+  if (!totalsDateEl) return;
+  const today = new Date();
+  const label = today.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+  totalsDateEl.textContent = label;
+}
+
 async function fetchSeasonData(startYear) {
   const res = await fetch(`snowdata.php?startYear=${encodeURIComponent(startYear)}`);
   if (!res.ok) {
@@ -591,6 +604,7 @@ async function initRecords() {
     renderSummary(records);
     renderTable(records);
     renderTotalsChart(records);
+    renderTotalsDate();
 
     if (footerUpdatedEl) {
       const latestDate = records.reduce((best, rec) => {

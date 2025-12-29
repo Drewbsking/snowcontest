@@ -696,6 +696,28 @@ body {
   margin-top: 1.1rem;
 }
 
+.record-chart-board {
+  margin-top: 1.15rem;
+  background: rgba(15,23,42,0.45);
+  border: 1px solid rgba(71,85,105,0.55);
+  border-radius: .9rem;
+  padding: .9rem 1.05rem 1.05rem;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 12px 26px rgba(0,0,0,0.22);
+}
+
+.record-chart-board-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .75rem;
+}
+
+.record-chart-board-date {
+  font-size: .82rem;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
 .record-chart-title {
   font-size: .78rem;
   letter-spacing: .06em;
