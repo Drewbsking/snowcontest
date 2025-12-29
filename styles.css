@@ -714,9 +714,9 @@ body {
   align-items: flex-end;
   gap: .65rem;
   margin-top: .75rem;
-  min-height: 200px;
+  min-height: 240px;
   overflow-x: auto;
-  padding: .1rem 0 .25rem;
+  padding: .35rem .15rem .25rem;
 }
 
 .record-chart-bar {
@@ -726,6 +726,7 @@ body {
   align-items: center;
   gap: .35rem;
   min-width: 54px;
+  height: 200px;
 }
 
 .record-chart-bar-fill {
@@ -740,6 +741,7 @@ body {
   font-size: .75rem;
   color: var(--text-main);
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .record-chart-bar-label {
@@ -752,6 +754,7 @@ body {
 .record-chart-empty {
   color: var(--text-dim);
   font-size: .9rem;
+  padding: .5rem 0;
 }
 
 .range-form {

@@ -532,19 +532,19 @@ function renderTotalsChart(records) {
 
     const fill = document.createElement('div');
     fill.className = 'record-chart-bar-fill';
-    const percent = Math.max((total / maxTotal) * 100, 4);
+    const percent = Math.max((total / maxTotal) * 100, 6);
     fill.style.height = `${percent}%`;
-
-    const value = document.createElement('div');
-    value.className = 'record-chart-bar-value';
-    value.textContent = `${formatInches(total)}"`;
 
     const label = document.createElement('div');
     label.className = 'record-chart-bar-label';
     label.textContent = rec.label;
 
-    bar.appendChild(fill);
+    const value = document.createElement('div');
+    value.className = 'record-chart-bar-value';
+    value.textContent = `${formatInches(total)}"`;
+
     bar.appendChild(value);
+    bar.appendChild(fill);
     bar.appendChild(label);
     totalsChartEl.appendChild(bar);
   });
