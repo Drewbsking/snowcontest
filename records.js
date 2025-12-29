@@ -4,6 +4,7 @@ const SEASON_START_YEARS = [
 ];
 const MEASURABLE_THRESHOLD = 0.1;
 const HEAVY_DAY_THRESHOLD = 2.0;
+const MAJOR_DAY_THRESHOLD = 6.0;
 
 const summaryEl = document.getElementById('record-summary');
 const loadingEl = document.getElementById('records-loading');
@@ -99,17 +100,25 @@ function computeSeasonStats(json, startYear) {
   const lastSnow = lastIndex >= 0 ? parseISODate(daily[lastIndex].date) : null;
 
   let heavyDayCount = 0;
+  let majorDayCount = 0;
   let streakLength = 0;
   let streakStart = null;
   let longestStreak = { length: 0, start: null, end: null };
   let largestDaily = { value: null, date: null };
+  let totalSnow = 0;
 
   daily.forEach((row) => {
-    if (typeof row?.snow === 'number' && !Number.isNaN(row.snow) && row.snow >= HEAVY_DAY_THRESHOLD) {
-      heavyDayCount += 1;
-    }
     const day = parseISODate(row?.date);
     const snow = typeof row?.snow === 'number' && !Number.isNaN(row.snow) ? row.snow : null;
+    if (snow != null) {
+      totalSnow += snow;
+    }
+    if (snow != null && snow >= HEAVY_DAY_THRESHOLD) {
+      heavyDayCount += 1;
+    }
+    if (snow != null && snow >= MAJOR_DAY_THRESHOLD) {
+      majorDayCount += 1;
+    }
     if (snow != null && (largestDaily.value == null || snow > largestDaily.value)) {
       largestDaily = { value: snow, date: day };
     }
@@ -205,6 +214,8 @@ function computeSeasonStats(json, startYear) {
     longestLull: longest,
     longestStreak,
     largestDaily,
+    totalSnow,
+    majorDayCount,
     holidays,
     holidayHits,
     holidayTotal: holidays.length,
@@ -258,9 +269,21 @@ function renderSummary(records) {
     return bestVal == null || currentVal > bestVal ? current : best;
   }, null);
 
+  const snowiestSeason = records.reduce((best, current) => {
+    const currentTotal = current.totalSnow ?? 0;
+    if (!best) return current;
+    const bestTotal = best.totalSnow ?? 0;
+    return currentTotal > bestTotal ? current : best;
+  }, null);
+
   const mostHeavyDays = records.reduce((best, current) => {
     if (!best) return current;
     return current.heavyDayCount > best.heavyDayCount ? current : best;
+  }, null);
+
+  const mostMajorDays = records.reduce((best, current) => {
+    if (!best) return current;
+    return current.majorDayCount > best.majorDayCount ? current : best;
   }, null);
 
   const cleanSweepSeasons = records.filter((rec) => rec.allHolidaysSnowed);
@@ -380,11 +403,27 @@ function renderSummary(records) {
     });
   }
 
+  if (snowiestSeason) {
+    cards.push({
+      title: 'Snowiest Season',
+      value: `${formatInches(snowiestSeason.totalSnow)}"`,
+      detail: snowiestSeason.label
+    });
+  }
+
   if (mostHeavyDays) {
     cards.push({
       title: 'Most 2+" Days',
       value: `${mostHeavyDays.heavyDayCount}`,
       detail: mostHeavyDays.label
+    });
+  }
+
+  if (mostMajorDays) {
+    cards.push({
+      title: 'Most 6+" Days',
+      value: `${mostMajorDays.majorDayCount}`,
+      detail: mostMajorDays.label
     });
   }
 
@@ -450,7 +489,9 @@ function renderTable(records) {
       streak,
       longest,
       largestDay,
+      `${formatInches(rec.totalSnow)}"`,
       rec.heavyDayCount ? String(rec.heavyDayCount) : '0',
+      rec.majorDayCount ? String(rec.majorDayCount) : '0',
       holidayText
     ];
 
