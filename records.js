@@ -105,11 +105,40 @@ function computeSeasonStats(json, startYear) {
   let majorDayCount = 0;
   let streakLength = 0;
   let streakStart = null;
+  let streakEnd = null;
   let streakTotal = 0;
   let longestStreak = { length: 0, start: null, end: null };
   let longestStreakTotal = 0;
+  let longestStreakCount = 0;
   let largestDaily = { value: null, date: null };
   let totalSnow = 0;
+
+  const finalizeStreak = () => {
+    if (streakLength <= 0) return;
+    if (streakLength > longestStreak.length) {
+      longestStreak = {
+        length: streakLength,
+        start: streakStart,
+        end: streakEnd
+      };
+      longestStreakTotal = streakTotal;
+      longestStreakCount = 1;
+    } else if (streakLength === longestStreak.length) {
+      longestStreakCount += 1;
+      if (streakTotal > longestStreakTotal) {
+        longestStreak = {
+          length: streakLength,
+          start: streakStart,
+          end: streakEnd
+        };
+        longestStreakTotal = streakTotal;
+      }
+    }
+    streakLength = 0;
+    streakStart = null;
+    streakEnd = null;
+    streakTotal = 0;
+  };
 
   daily.forEach((row) => {
     const day = parseISODate(row?.date);
@@ -129,34 +158,15 @@ function computeSeasonStats(json, startYear) {
     if (snow != null && snow >= MEASURABLE_THRESHOLD) {
       if (streakLength === 0) {
         streakStart = day;
-        streakTotal = 0;
       }
       streakLength += 1;
       streakTotal += snow;
-      if (streakLength > longestStreak.length
-        || (streakLength === longestStreak.length && streakTotal > longestStreakTotal)) {
-        longestStreak = {
-          length: streakLength,
-          start: streakStart,
-          end: day
-        };
-        longestStreakTotal = streakTotal;
-      }
+      streakEnd = day;
     } else if (streakLength > 0) {
-      streakLength = 0;
-      streakStart = null;
-      streakTotal = 0;
+      finalizeStreak();
     }
   });
-  if (streakLength > 0 && (streakLength > longestStreak.length
-    || (streakLength === longestStreak.length && streakTotal > longestStreakTotal))) {
-    longestStreak = {
-      length: streakLength,
-      start: streakStart,
-      end: parseISODate(daily[daily.length - 1]?.date) || streakStart
-    };
-    longestStreakTotal = streakTotal;
-  }
+  finalizeStreak();
 
   let longest = { length: 0, start: null, end: null };
   if (firstIndex >= 0 && lastIndex >= firstIndex) {
@@ -225,6 +235,7 @@ function computeSeasonStats(json, startYear) {
     longestLull: longest,
     longestStreak,
     longestStreakTotal,
+    longestStreakCount,
     largestDaily,
     totalSnow,
     majorDayCount,
@@ -486,7 +497,7 @@ function renderTable(records) {
       ? `${rec.longestLull.length} day${rec.longestLull.length === 1 ? '' : 's'}${rec.longestLull.start && rec.longestLull.end ? ` (${formatDateLabel(rec.longestLull.start)} → ${formatDateLabel(rec.longestLull.end)})` : ''}`
       : '—';
     const streak = rec.longestStreak?.length > 0
-      ? `${rec.longestStreak.length} day${rec.longestStreak.length === 1 ? '' : 's'}${rec.longestStreak.start && rec.longestStreak.end ? ` (${formatDateLabel(rec.longestStreak.start)} → ${formatDateLabel(rec.longestStreak.end)})` : ''}`
+      ? `${rec.longestStreak.length} day${rec.longestStreak.length === 1 ? '' : 's'}${rec.longestStreak.start && rec.longestStreak.end ? ` (${formatDateLabel(rec.longestStreak.start)} → ${formatDateLabel(rec.longestStreak.end)})` : ''}${rec.longestStreakCount > 1 ? ` · Tied (${rec.longestStreakCount} streaks)` : ''}`
       : '—';
     const streakTotal = rec.longestStreak?.length > 0
       ? `${formatInches(rec.longestStreakTotal)}"`

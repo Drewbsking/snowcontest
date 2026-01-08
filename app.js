@@ -1586,11 +1586,13 @@ async function loadSeason(startYear) {
     let sixPlusDayCount = 0;
     let streakLength = 0;
     let streakStart = null;
+    let streakEnd = null;
     let streakSnowTotal = 0;
     let longestStreakLength = 0;
     let longestStreakStart = null;
     let longestStreakEnd = null;
     let longestStreakSnowTotal = 0;
+    let longestStreakCount = 0;
     let largestDailyValue = null;
     let largestDailyDate = null;
     let firstSnowDay = null;
@@ -1598,6 +1600,28 @@ async function loadSeason(startYear) {
     let sumMeasurableSnow = 0;
     let countMeasurableDays = 0;
     const missingDates = new Set();
+
+    const finalizeStreak = () => {
+      if (streakLength <= 0) return;
+      if (streakLength > longestStreakLength) {
+        longestStreakLength = streakLength;
+        longestStreakStart = streakStart;
+        longestStreakEnd = streakEnd;
+        longestStreakSnowTotal = streakSnowTotal;
+        longestStreakCount = 1;
+      } else if (streakLength === longestStreakLength) {
+        longestStreakCount += 1;
+        if (streakSnowTotal > longestStreakSnowTotal) {
+          longestStreakStart = streakStart;
+          longestStreakEnd = streakEnd;
+          longestStreakSnowTotal = streakSnowTotal;
+        }
+      }
+      streakLength = 0;
+      streakStart = null;
+      streakEnd = null;
+      streakSnowTotal = 0;
+    };
 
     json.daily.forEach(row => {
       const day = parseISODate(row.date);
@@ -1623,17 +1647,10 @@ async function loadSeason(startYear) {
           countMeasurableDays += 1;
           if (streakLength === 0) {
             streakStart = day;
-            streakSnowTotal = 0;
           }
           streakLength += 1;
           streakSnowTotal += snowValue;
-          if (streakLength > longestStreakLength
-            || (streakLength === longestStreakLength && streakSnowTotal > longestStreakSnowTotal)) {
-            longestStreakLength = streakLength;
-            longestStreakStart = streakStart;
-            longestStreakEnd = day;
-            longestStreakSnowTotal = streakSnowTotal;
-          }
+          streakEnd = day;
         }
         if (snowValue >= heavyThreshold) {
           heavyDayCount += 1;
@@ -1642,16 +1659,13 @@ async function loadSeason(startYear) {
           sixPlusDayCount += 1;
         }
         if (day && snowValue < measurableThreshold && streakLength > 0) {
-          streakLength = 0;
-          streakStart = null;
-          streakSnowTotal = 0;
+          finalizeStreak();
         }
       } else if (streakLength > 0) {
-        streakLength = 0;
-        streakStart = null;
-        streakSnowTotal = 0;
+        finalizeStreak();
       }
     });
+    finalizeStreak();
 
     // Render holiday badges with measured amounts
     renderHolidayBadges(startYear, json.daily);
@@ -1728,9 +1742,12 @@ async function loadSeason(startYear) {
         });
         const startLabel = formatDateLabel(longestStreakStart);
         const endLabel = formatDateLabel(longestStreakEnd);
+        const streakTieNote = longestStreakCount > 1
+          ? ` · Tied (${longestStreakCount} streaks)`
+          : '';
         streakNoteEl.textContent = startLabel && endLabel
-          ? `${startLabel} → ${endLabel}`
-          : 'Longest run of ≥0.1" days';
+          ? `${startLabel} → ${endLabel}${streakTieNote}`
+          : `Longest run of ≥0.1" days${streakTieNote}`;
       } else {
         resetAnimatedNumber(streakValueEl);
         streakNoteEl.textContent = 'Awaiting consecutive ≥0.1" snow days';
@@ -1747,9 +1764,12 @@ async function loadSeason(startYear) {
         });
         const startLabel = formatDateLabel(longestStreakStart);
         const endLabel = formatDateLabel(longestStreakEnd);
+        const streakTieNote = longestStreakCount > 1
+          ? ` · Tied (${longestStreakCount} streaks)`
+          : '';
         streakTotalNoteEl.textContent = startLabel && endLabel
-          ? `${startLabel} → ${endLabel}`
-          : 'Total during longest streak';
+          ? `${startLabel} → ${endLabel}${streakTieNote}`
+          : `Total during longest streak${streakTieNote}`;
       } else {
         resetAnimatedNumber(streakTotalValueEl);
         streakTotalNoteEl.textContent = 'Awaiting consecutive ≥0.1" snow days';
