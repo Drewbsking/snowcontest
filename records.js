@@ -105,7 +105,9 @@ function computeSeasonStats(json, startYear) {
   let majorDayCount = 0;
   let streakLength = 0;
   let streakStart = null;
+  let streakTotal = 0;
   let longestStreak = { length: 0, start: null, end: null };
+  let longestStreakTotal = 0;
   let largestDaily = { value: null, date: null };
   let totalSnow = 0;
 
@@ -127,26 +129,33 @@ function computeSeasonStats(json, startYear) {
     if (snow != null && snow >= MEASURABLE_THRESHOLD) {
       if (streakLength === 0) {
         streakStart = day;
+        streakTotal = 0;
       }
       streakLength += 1;
-      if (streakLength > longestStreak.length) {
+      streakTotal += snow;
+      if (streakLength > longestStreak.length
+        || (streakLength === longestStreak.length && streakTotal > longestStreakTotal)) {
         longestStreak = {
           length: streakLength,
           start: streakStart,
           end: day
         };
+        longestStreakTotal = streakTotal;
       }
     } else if (streakLength > 0) {
       streakLength = 0;
       streakStart = null;
+      streakTotal = 0;
     }
   });
-  if (streakLength > 0 && streakLength > longestStreak.length) {
+  if (streakLength > 0 && (streakLength > longestStreak.length
+    || (streakLength === longestStreak.length && streakTotal > longestStreakTotal))) {
     longestStreak = {
       length: streakLength,
       start: streakStart,
       end: parseISODate(daily[daily.length - 1]?.date) || streakStart
     };
+    longestStreakTotal = streakTotal;
   }
 
   let longest = { length: 0, start: null, end: null };
@@ -215,6 +224,7 @@ function computeSeasonStats(json, startYear) {
     heavyDayCount,
     longestLull: longest,
     longestStreak,
+    longestStreakTotal,
     largestDaily,
     totalSnow,
     majorDayCount,
@@ -478,6 +488,9 @@ function renderTable(records) {
     const streak = rec.longestStreak?.length > 0
       ? `${rec.longestStreak.length} day${rec.longestStreak.length === 1 ? '' : 's'}${rec.longestStreak.start && rec.longestStreak.end ? ` (${formatDateLabel(rec.longestStreak.start)} → ${formatDateLabel(rec.longestStreak.end)})` : ''}`
       : '—';
+    const streakTotal = rec.longestStreak?.length > 0
+      ? `${formatInches(rec.longestStreakTotal)}"`
+      : '—';
     const largestDay = rec.largestDaily?.value != null
       ? `${formatInches(rec.largestDaily.value)}"${rec.largestDaily.date ? ` (${formatDateLabel(rec.largestDaily.date)})` : ''}`
       : '—';
@@ -489,6 +502,7 @@ function renderTable(records) {
       rec.firstSnow ? formatDateLabel(rec.firstSnow) : '—',
       rec.lastSnow ? formatDateLabel(rec.lastSnow) : '—',
       streak,
+      streakTotal,
       longest,
       largestDay,
       `${formatInches(rec.totalSnow)}"`,
