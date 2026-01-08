@@ -1456,6 +1456,11 @@ function populateSeasonDropdown() {
   if (twoPlusValueEl) resetAnimatedNumber(twoPlusValueEl);
   if (twoPlusNoteEl) twoPlusNoteEl.textContent = 'Days with ≥2.0"';
 
+  const sixPlusValueEl = document.getElementById('six-plus-days-value');
+  const sixPlusNoteEl = document.getElementById('six-plus-days-note');
+  if (sixPlusValueEl) resetAnimatedNumber(sixPlusValueEl);
+  if (sixPlusNoteEl) sixPlusNoteEl.textContent = 'Days with ≥6.0"';
+
   const now = new Date();
   const month = now.getMonth() + 1; // 1..12
   const year = now.getFullYear();
@@ -1572,7 +1577,9 @@ async function loadSeason(startYear) {
     const seasonalCum = [];
     const measurableThreshold = MEASURABLE_SNOW_THRESHOLD;
     const heavyThreshold = 2.0;
+    const sixPlusThreshold = 6.0;
     let heavyDayCount = 0;
+    let sixPlusDayCount = 0;
     let streakLength = 0;
     let streakStart = null;
     let longestStreakLength = 0;
@@ -1620,6 +1627,9 @@ async function loadSeason(startYear) {
         }
         if (snowValue >= heavyThreshold) {
           heavyDayCount += 1;
+        }
+        if (snowValue >= sixPlusThreshold) {
+          sixPlusDayCount += 1;
         }
         if (day && snowValue < measurableThreshold && streakLength > 0) {
           streakLength = 0;
@@ -1720,6 +1730,17 @@ async function loadSeason(startYear) {
     const twoPlusNoteEl2 = document.getElementById('two-plus-days-note');
     if (twoPlusValueEl2 && twoPlusNoteEl2) {
       animateNumberText(twoPlusValueEl2, heavyDayCount, {
+        format: (val) => Math.round(val).toString(),
+        fallback: '--'
+      });
+      // keep the static note text
+    }
+
+    // 6+ inch day count (seasonal window)
+    const sixPlusValueEl2 = document.getElementById('six-plus-days-value');
+    const sixPlusNoteEl2 = document.getElementById('six-plus-days-note');
+    if (sixPlusValueEl2 && sixPlusNoteEl2) {
+      animateNumberText(sixPlusValueEl2, sixPlusDayCount, {
         format: (val) => Math.round(val).toString(),
         fallback: '--'
       });
