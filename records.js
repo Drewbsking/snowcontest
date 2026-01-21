@@ -497,7 +497,10 @@ function renderTable(records) {
       ? `${rec.longestLull.length} day${rec.longestLull.length === 1 ? '' : 's'}${rec.longestLull.start && rec.longestLull.end ? ` (${formatDateLabel(rec.longestLull.start)} → ${formatDateLabel(rec.longestLull.end)})` : ''}`
       : '—';
     const streak = rec.longestStreak?.length > 0
-      ? `${rec.longestStreak.length} day${rec.longestStreak.length === 1 ? '' : 's'}${rec.longestStreak.start && rec.longestStreak.end ? ` (${formatDateLabel(rec.longestStreak.start)} → ${formatDateLabel(rec.longestStreak.end)})` : ''}${rec.longestStreakCount > 1 ? ` · Tied (${rec.longestStreakCount} streaks)` : ''}`
+      ? `${rec.longestStreak.length} day${rec.longestStreak.length === 1 ? '' : 's'}${rec.longestStreak.start && rec.longestStreak.end ? ` (${formatDateLabel(rec.longestStreak.start)} → ${formatDateLabel(rec.longestStreak.end)})` : ''}`
+      : '—';
+    const streakState = rec.longestStreak?.length > 0 && rec.longestStreakCount > 1
+      ? `Tied (${rec.longestStreakCount} streaks)`
       : '—';
     const streakTotal = rec.longestStreak?.length > 0
       ? `${formatInches(rec.longestStreakTotal)}"`
@@ -513,6 +516,7 @@ function renderTable(records) {
       rec.firstSnow ? formatDateLabel(rec.firstSnow) : '—',
       rec.lastSnow ? formatDateLabel(rec.lastSnow) : '—',
       streak,
+      streakState,
       streakTotal,
       longest,
       largestDay,
