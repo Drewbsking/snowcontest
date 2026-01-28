@@ -78,9 +78,26 @@
       <div class="record-chart" id="season-total-chart" role="list" aria-label="Season total snowfall bar chart"></div>
     </div>
   </section>
+
+  <section class="card" id="to-date-card">
+    <div class="chart-card-header">
+      <span>Cumulative Snowfall To-Date</span>
+      <span class="chart-sub">Cumulative totals through today's date, compared across seasons.</span>
+    </div>
+    <div class="record-chart-board">
+      <div class="record-chart-board-top">
+        <div class="record-chart-title">To-Date Cumulative</div>
+        <div class="record-chart-board-date" id="to-date-label"></div>
+      </div>
+      <div class="record-line-wrap">
+        <canvas id="to-date-chart" aria-label="Cumulative snowfall to-date line chart" role="img"></canvas>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script src="snow.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4" defer></script>
 <script src="records.js" defer></script>
 <footer class="site-footer">
   <div class="footer-wrap">

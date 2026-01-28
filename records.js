@@ -12,6 +12,12 @@ const tableBodyEl = document.querySelector('#season-record-table tbody');
 const footerUpdatedEl = document.getElementById('data-updated');
 const totalsChartEl = document.getElementById('season-total-chart');
 const totalsDateEl = document.getElementById('season-total-date');
+const toDateChartEl = document.getElementById('to-date-chart');
+const toDateLabelEl = document.getElementById('to-date-label');
+
+let toDateChart = null;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function seasonLabel(year) {
   return `${year}-${year + 1}`;
@@ -43,6 +49,34 @@ function parseISODate(dateStr) {
   if (!dateStr) return null;
   const date = new Date(`${dateStr}T00:00:00`);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getCurrentSeasonStartYear(today) {
+  const month = today.getMonth() + 1;
+  const year = today.getFullYear();
+  return month >= 7 ? year : year - 1;
+}
+
+function makeUtcDate(year, monthIndex, day) {
+  return new Date(Date.UTC(year, monthIndex, day));
+}
+
+function getSeasonAsOfDate(startYear, today) {
+  const monthIndex = today.getMonth();
+  const day = today.getDate();
+  const targetYear = monthIndex >= 6 ? startYear : startYear + 1;
+  let asOf = makeUtcDate(targetYear, monthIndex, day);
+  if (asOf.getUTCMonth() !== monthIndex) {
+    asOf = makeUtcDate(targetYear, monthIndex + 1, 0);
+  }
+  return asOf;
+}
+
+function getSeasonToDateIndex(startYear, today) {
+  const seasonStart = makeUtcDate(startYear, 6, 1);
+  const asOf = getSeasonAsOfDate(startYear, today);
+  const diff = Math.floor((asOf - seasonStart) / MS_PER_DAY);
+  return Math.max(0, diff);
 }
 
 function getNthWeekdayOfMonth(year, month1to12, weekday0to6, nth) {
@@ -87,6 +121,11 @@ function determineLastDataDate(dailyRows) {
 function computeSeasonStats(json, startYear) {
   const daily = Array.isArray(json?.daily) ? json.daily : [];
   const label = seasonLabel(startYear);
+  const cumulative = daily.map((row) => (
+    typeof row?.seasonal_cum === 'number' && !Number.isNaN(row.seasonal_cum)
+      ? row.seasonal_cum
+      : null
+  ));
 
   const firstIndex = daily.findIndex((row) => typeof row?.snow === 'number' && !Number.isNaN(row.snow) && row.snow >= MEASURABLE_THRESHOLD);
   let lastIndex = -1;
@@ -254,6 +293,7 @@ function computeSeasonStats(json, startYear) {
     longestStreakCount,
     largestDaily,
     totalSnow,
+    cumulative,
     januaryTotal: januaryDataDays > 0 ? januaryTotal : null,
     januarySnowDays: januaryDataDays > 0 ? januarySnowDays : null,
     januaryYear,
@@ -642,6 +682,145 @@ function renderTotalsDate() {
   totalsDateEl.textContent = label;
 }
 
+function renderToDateChart(records) {
+  if (!toDateChartEl) return;
+  if (typeof Chart === 'undefined') {
+    if (toDateLabelEl) {
+      toDateLabelEl.textContent = 'Chart unavailable.';
+    }
+    return;
+  }
+
+  const today = new Date();
+  const currentSeasonYear = getCurrentSeasonStartYear(today);
+  const sorted = [...records].sort((a, b) => a.startYear - b.startYear);
+  const datasets = [];
+  let maxIndex = 0;
+
+  const recentPalette = ['#38bdf8', '#f59e0b', '#34d399', '#f87171', '#22d3ee', '#60a5fa'];
+
+  sorted.forEach((rec) => {
+    if (!Array.isArray(rec.cumulative) || !rec.cumulative.length) return;
+    const endIndex = Math.min(getSeasonToDateIndex(rec.startYear, today), rec.cumulative.length - 1);
+    if (endIndex < 0) return;
+    maxIndex = Math.max(maxIndex, endIndex);
+
+    const data = [];
+    for (let i = 0; i <= endIndex; i += 1) {
+      const val = rec.cumulative[i];
+      if (typeof val === 'number' && !Number.isNaN(val)) {
+        data.push({ x: i, y: val });
+      }
+    }
+    if (!data.length) return;
+
+    const recency = currentSeasonYear - rec.startYear;
+    let color = 'rgba(148,163,184,0.35)';
+    let width = 1.2;
+    let dash = [4, 4];
+    if (recency >= 0 && recency < recentPalette.length) {
+      color = recentPalette[recency];
+      width = recency === 0 ? 2.6 : 1.7;
+      dash = [];
+    }
+
+    datasets.push({
+      label: rec.label,
+      data,
+      borderColor: color,
+      borderWidth: width,
+      borderDash: dash,
+      tension: 0.25,
+      pointRadius: 0,
+      pointHitRadius: 6,
+      spanGaps: true
+    });
+  });
+
+  if (!datasets.length) {
+    if (toDateLabelEl) {
+      toDateLabelEl.textContent = 'No cumulative data available.';
+    }
+    return;
+  }
+
+  const rootStyles = getComputedStyle(document.documentElement);
+  const textMain = rootStyles.getPropertyValue('--text-main').trim() || '#e2e8f0';
+  const textDim = rootStyles.getPropertyValue('--text-dim').trim() || '#94a3b8';
+  const gridColor = 'rgba(148,163,184,0.14)';
+
+  if (toDateChart) {
+    toDateChart.destroy();
+  }
+
+  toDateChart = new Chart(toDateChartEl, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: maxIndex,
+          grid: { color: gridColor },
+          ticks: {
+            color: textDim,
+            maxTicksLimit: 8,
+            callback: (value) => Math.round(value) + 1
+          },
+          title: {
+            display: true,
+            text: 'Days into season (Jul 1 = Day 1)',
+            color: textDim,
+            font: { size: 12, weight: '600' }
+          }
+        },
+        y: {
+          grid: { color: gridColor },
+          ticks: {
+            color: textDim,
+            callback: (value) => formatInches(value)
+          },
+          title: {
+            display: true,
+            text: 'Cumulative snowfall (inches)',
+            color: textDim,
+            font: { size: 12, weight: '600' }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: textMain,
+            boxWidth: 12,
+            boxHeight: 12,
+            usePointStyle: true,
+            pointStyle: 'line'
+          }
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const day = items[0]?.parsed?.x;
+              return Number.isFinite(day) ? `Day ${Math.round(day) + 1}` : 'Day';
+            },
+            label: (ctx) => `${ctx.dataset.label}: ${formatInches(ctx.parsed.y)}"`
+          }
+        }
+      }
+    }
+  });
+
+  if (toDateLabelEl) {
+    const label = formatDateLabel(today);
+    toDateLabelEl.textContent = label ? `Through ${label}` : '';
+  }
+}
+
 async function fetchSeasonData(startYear) {
   const res = await fetch(`snowdata.php?startYear=${encodeURIComponent(startYear)}`);
   if (!res.ok) {
@@ -684,6 +863,7 @@ async function initRecords() {
     renderTable(records);
     renderTotalsChart(records);
     renderTotalsDate();
+    renderToDateChart(records);
 
     if (footerUpdatedEl) {
       const latestDate = records.reduce((best, rec) => {
