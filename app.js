@@ -1609,6 +1609,7 @@ async function loadSeason(startYear) {
     let countMeasurableDays = 0;
     let januaryTotal = 0;
     let januaryDataDays = 0;
+    let januarySnowDays = 0;
     let januaryMissingDays = 0;
     let januaryYear = Number.isFinite(parsedStartYear) ? parsedStartYear + 1 : null;
     const missingDates = new Set();
@@ -1648,6 +1649,9 @@ async function loadSeason(startYear) {
         if (typeof snowValue === 'number' && !Number.isNaN(snowValue)) {
           januaryTotal += snowValue;
           januaryDataDays += 1;
+          if (snowValue >= measurableThreshold) {
+            januarySnowDays += 1;
+          }
         } else if (snowValue == null) {
           januaryMissingDays += 1;
         }
@@ -1701,15 +1705,16 @@ async function loadSeason(startYear) {
     if (januaryValueEl && januaryNoteEl) {
       const januaryLabel = januaryYear ? `Jan ${januaryYear}` : 'January';
       if (januaryDataDays > 0) {
+        const snowDayLabel = januarySnowDays === 1 ? 'snow day' : 'snow days';
         animateNumberText(januaryValueEl, januaryTotal, {
           format: (val) => Number(val).toFixed(1),
           fallback: '--'
         });
         if (januaryMissingDays > 0) {
-          const dayLabel = januaryMissingDays === 1 ? 'day' : 'days';
-          januaryNoteEl.textContent = `${januaryLabel} total (${januaryMissingDays} missing ${dayLabel})`;
+          const missingLabel = januaryMissingDays === 1 ? 'missing day' : 'missing days';
+          januaryNoteEl.textContent = `${januaryLabel} total · ${januarySnowDays} ${snowDayLabel} (≥0.1") · ${januaryMissingDays} ${missingLabel}`;
         } else {
-          januaryNoteEl.textContent = `${januaryLabel} snowfall total`;
+          januaryNoteEl.textContent = `${januaryLabel} total · ${januarySnowDays} ${snowDayLabel} (≥0.1")`;
         }
       } else {
         resetAnimatedNumber(januaryValueEl);

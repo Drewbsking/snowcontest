@@ -114,6 +114,7 @@ function computeSeasonStats(json, startYear) {
   let totalSnow = 0;
   let januaryTotal = 0;
   let januaryDataDays = 0;
+  let januarySnowDays = 0;
   let januaryMissingDays = 0;
   const januaryYear = startYear + 1;
 
@@ -154,6 +155,9 @@ function computeSeasonStats(json, startYear) {
       if (snow != null) {
         januaryTotal += snow;
         januaryDataDays += 1;
+        if (snow >= MEASURABLE_THRESHOLD) {
+          januarySnowDays += 1;
+        }
       } else {
         januaryMissingDays += 1;
       }
@@ -251,6 +255,7 @@ function computeSeasonStats(json, startYear) {
     largestDaily,
     totalSnow,
     januaryTotal: januaryDataDays > 0 ? januaryTotal : null,
+    januarySnowDays: januaryDataDays > 0 ? januarySnowDays : null,
     januaryYear,
     januaryMissingDays,
     majorDayCount,
@@ -544,6 +549,9 @@ function renderTable(records) {
     const januaryTotalText = rec.januaryTotal != null
       ? `${formatInches(rec.januaryTotal)}"`
       : '—';
+    const januarySnowDaysText = rec.januarySnowDays != null
+      ? String(rec.januarySnowDays)
+      : '—';
 
     const holidayText = `${rec.holidayHits}/${rec.holidayTotal}` + (rec.allHolidaysSnowed ? ' ✓' : '');
 
@@ -558,6 +566,7 @@ function renderTable(records) {
       largestDay,
       `${formatInches(rec.totalSnow)}"`,
       januaryTotalText,
+      januarySnowDaysText,
       rec.heavyDayCount ? String(rec.heavyDayCount) : '0',
       rec.majorDayCount ? String(rec.majorDayCount) : '0',
       holidayText
