@@ -1465,6 +1465,11 @@ function populateSeasonDropdown() {
   if (sixPlusValueEl) resetAnimatedNumber(sixPlusValueEl);
   if (sixPlusNoteEl) sixPlusNoteEl.textContent = 'Days with ≥6.0"';
 
+  const januaryTotalValueEl = document.getElementById('january-total-value');
+  const januaryTotalNoteEl = document.getElementById('january-total-note');
+  if (januaryTotalValueEl) resetAnimatedNumber(januaryTotalValueEl);
+  if (januaryTotalNoteEl) januaryTotalNoteEl.textContent = 'Awaiting January data...';
+
   const now = new Date();
   const month = now.getMonth() + 1; // 1..12
   const year = now.getFullYear();
@@ -1525,7 +1530,10 @@ async function loadSeason(startYear) {
       const sl = document.getElementById('season-label'); if (sl) sl.textContent = '';
       const sr = document.getElementById('seasonal-range-label'); if (sr) sr.textContent = '';
       resetAnimatedNumber(document.getElementById('seasonal-total-value'));
+      resetAnimatedNumber(document.getElementById('january-total-value'));
       resetAnimatedNumber(document.getElementById('largest-storm-value'));
+      const januaryNoteEl = document.getElementById('january-total-note');
+      if (januaryNoteEl) januaryNoteEl.textContent = 'Unable to load';
       document.getElementById('largest-storm-note').textContent = 'Unable to load';
       console.error(json.error);
 
@@ -1599,6 +1607,10 @@ async function loadSeason(startYear) {
     let lastSnowDay = null;
     let sumMeasurableSnow = 0;
     let countMeasurableDays = 0;
+    let januaryTotal = 0;
+    let januaryDataDays = 0;
+    let januaryMissingDays = 0;
+    let januaryYear = Number.isFinite(parsedStartYear) ? parsedStartYear + 1 : null;
     const missingDates = new Set();
 
     const finalizeStreak = () => {
@@ -1626,6 +1638,20 @@ async function loadSeason(startYear) {
     json.daily.forEach(row => {
       const day = parseISODate(row.date);
       const snowValue = row.snow === null ? null : row.snow;
+      const isJanuary = day && day.getMonth() === 0;
+
+      if (isJanuary && januaryYear == null && day) {
+        januaryYear = day.getFullYear();
+      }
+
+      if (isJanuary) {
+        if (typeof snowValue === 'number' && !Number.isNaN(snowValue)) {
+          januaryTotal += snowValue;
+          januaryDataDays += 1;
+        } else if (snowValue == null) {
+          januaryMissingDays += 1;
+        }
+      }
 
       if (snowValue === null) {
         missingDates.add(row.date);
@@ -1669,6 +1695,27 @@ async function loadSeason(startYear) {
 
     // Render holiday badges with measured amounts
     renderHolidayBadges(startYear, json.daily);
+
+    const januaryValueEl = document.getElementById('january-total-value');
+    const januaryNoteEl = document.getElementById('january-total-note');
+    if (januaryValueEl && januaryNoteEl) {
+      const januaryLabel = januaryYear ? `Jan ${januaryYear}` : 'January';
+      if (januaryDataDays > 0) {
+        animateNumberText(januaryValueEl, januaryTotal, {
+          format: (val) => Number(val).toFixed(1),
+          fallback: '--'
+        });
+        if (januaryMissingDays > 0) {
+          const dayLabel = januaryMissingDays === 1 ? 'day' : 'days';
+          januaryNoteEl.textContent = `${januaryLabel} total (${januaryMissingDays} missing ${dayLabel})`;
+        } else {
+          januaryNoteEl.textContent = `${januaryLabel} snowfall total`;
+        }
+      } else {
+        resetAnimatedNumber(januaryValueEl);
+        januaryNoteEl.textContent = `Awaiting ${januaryLabel} data`;
+      }
+    }
 
     const largestStormValueEl = document.getElementById('largest-storm-value');
     const largestStormNoteEl = document.getElementById('largest-storm-note');
@@ -1924,7 +1971,10 @@ async function loadSeason(startYear) {
     const sl = document.getElementById('season-label'); if (sl) sl.textContent = '';
     const sr = document.getElementById('seasonal-range-label'); if (sr) sr.textContent = '';
     resetAnimatedNumber(document.getElementById('seasonal-total-value'));
+    resetAnimatedNumber(document.getElementById('january-total-value'));
     resetAnimatedNumber(document.getElementById('largest-storm-value'));
+    const januaryNoteEl = document.getElementById('january-total-note');
+    if (januaryNoteEl) januaryNoteEl.textContent = 'Unable to load';
     document.getElementById('largest-storm-note').textContent = 'Unable to load';
     updatePredictionDisplay(null);
     drawChart([], [], [], null, null, null, []);

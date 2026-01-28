@@ -112,6 +112,10 @@ function computeSeasonStats(json, startYear) {
   let longestStreakCount = 0;
   let largestDaily = { value: null, date: null };
   let totalSnow = 0;
+  let januaryTotal = 0;
+  let januaryDataDays = 0;
+  let januaryMissingDays = 0;
+  const januaryYear = startYear + 1;
 
   const finalizeStreak = () => {
     if (streakLength <= 0) return;
@@ -145,6 +149,14 @@ function computeSeasonStats(json, startYear) {
     const snow = typeof row?.snow === 'number' && !Number.isNaN(row.snow) ? row.snow : null;
     if (snow != null) {
       totalSnow += snow;
+    }
+    if (day && day.getMonth() === 0) {
+      if (snow != null) {
+        januaryTotal += snow;
+        januaryDataDays += 1;
+      } else {
+        januaryMissingDays += 1;
+      }
     }
     if (snow != null && snow >= HEAVY_DAY_THRESHOLD) {
       heavyDayCount += 1;
@@ -238,6 +250,9 @@ function computeSeasonStats(json, startYear) {
     longestStreakCount,
     largestDaily,
     totalSnow,
+    januaryTotal: januaryDataDays > 0 ? januaryTotal : null,
+    januaryYear,
+    januaryMissingDays,
     majorDayCount,
     holidays,
     holidayHits,
@@ -296,6 +311,14 @@ function renderSummary(records) {
     const currentTotal = current.totalSnow ?? 0;
     if (!best) return current;
     const bestTotal = best.totalSnow ?? 0;
+    return currentTotal > bestTotal ? current : best;
+  }, null);
+
+  const snowiestJanuary = records.reduce((best, current) => {
+    const currentTotal = current.januaryTotal;
+    if (currentTotal == null) return best;
+    if (!best) return current;
+    const bestTotal = best.januaryTotal ?? -1;
     return currentTotal > bestTotal ? current : best;
   }, null);
 
@@ -434,6 +457,15 @@ function renderSummary(records) {
     });
   }
 
+  if (snowiestJanuary && snowiestJanuary.januaryTotal != null) {
+    const janLabel = snowiestJanuary.januaryYear ? `Jan ${snowiestJanuary.januaryYear}` : 'January';
+    cards.push({
+      title: 'Snowiest January',
+      value: `${formatInches(snowiestJanuary.januaryTotal)}"`,
+      detail: `${snowiestJanuary.label} (${janLabel})`
+    });
+  }
+
   if (mostHeavyDays) {
     cards.push({
       title: 'Most 2+" Days',
@@ -509,6 +541,10 @@ function renderTable(records) {
       ? `${formatInches(rec.largestDaily.value)}"${rec.largestDaily.date ? ` (${formatDateLabel(rec.largestDaily.date)})` : ''}`
       : '—';
 
+    const januaryTotalText = rec.januaryTotal != null
+      ? `${formatInches(rec.januaryTotal)}"`
+      : '—';
+
     const holidayText = `${rec.holidayHits}/${rec.holidayTotal}` + (rec.allHolidaysSnowed ? ' ✓' : '');
 
     const cells = [
@@ -521,6 +557,7 @@ function renderTable(records) {
       longest,
       largestDay,
       `${formatInches(rec.totalSnow)}"`,
+      januaryTotalText,
       rec.heavyDayCount ? String(rec.heavyDayCount) : '0',
       rec.majorDayCount ? String(rec.majorDayCount) : '0',
       holidayText
