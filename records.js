@@ -697,6 +697,7 @@ function renderToDateChart(records) {
   const sorted = [...records].sort((a, b) => a.startYear - b.startYear);
   const datasets = [];
   let maxIndex = 0;
+  let earliestIndex = null;
 
   const recentPalette = ['#38bdf8', '#f59e0b', '#34d399', '#f87171', '#22d3ee', '#60a5fa'];
 
@@ -715,6 +716,9 @@ function renderToDateChart(records) {
       }
     }
     if (firstMeasurableIndex < 0 || endIndex < firstMeasurableIndex) return;
+    if (earliestIndex == null || firstMeasurableIndex < earliestIndex) {
+      earliestIndex = firstMeasurableIndex;
+    }
 
     const data = [];
     for (let i = firstMeasurableIndex; i <= endIndex; i += 1) {
@@ -765,6 +769,7 @@ function renderToDateChart(records) {
     toDateChart.destroy();
   }
 
+  const xMin = earliestIndex == null ? 0 : earliestIndex;
   toDateChart = new Chart(toDateChartEl, {
     type: 'line',
     data: { datasets },
@@ -775,7 +780,7 @@ function renderToDateChart(records) {
       scales: {
         x: {
           type: 'linear',
-          min: 0,
+          min: xMin,
           max: maxIndex,
           grid: { color: gridColor },
           ticks: {
