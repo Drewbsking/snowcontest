@@ -294,6 +294,7 @@ function computeSeasonStats(json, startYear) {
     largestDaily,
     totalSnow,
     cumulative,
+    daily,
     januaryTotal: januaryDataDays > 0 ? januaryTotal : null,
     januarySnowDays: januaryDataDays > 0 ? januarySnowDays : null,
     januaryYear,
@@ -703,16 +704,29 @@ function renderToDateChart(records) {
     if (!Array.isArray(rec.cumulative) || !rec.cumulative.length) return;
     const endIndex = Math.min(getSeasonToDateIndex(rec.startYear, today), rec.cumulative.length - 1);
     if (endIndex < 0) return;
-    maxIndex = Math.max(maxIndex, endIndex);
+
+    let firstMeasurableIndex = -1;
+    for (let i = 0; i <= endIndex; i += 1) {
+      const dailyRow = rec.daily?.[i];
+      const snowVal = dailyRow?.snow;
+      if (typeof snowVal === 'number' && !Number.isNaN(snowVal) && snowVal >= MEASURABLE_THRESHOLD) {
+        firstMeasurableIndex = i;
+        break;
+      }
+    }
+    if (firstMeasurableIndex < 0 || endIndex < firstMeasurableIndex) return;
 
     const data = [];
-    for (let i = 0; i <= endIndex; i += 1) {
+    const rawBase = firstMeasurableIndex > 0 ? rec.cumulative[firstMeasurableIndex - 1] : 0;
+    const baseCum = Number.isFinite(rawBase) ? rawBase : 0;
+    for (let i = firstMeasurableIndex; i <= endIndex; i += 1) {
       const val = rec.cumulative[i];
       if (typeof val === 'number' && !Number.isNaN(val)) {
-        data.push({ x: i, y: val });
+        data.push({ x: i - firstMeasurableIndex, y: val - baseCum });
       }
     }
     if (!data.length) return;
+    maxIndex = Math.max(maxIndex, endIndex - firstMeasurableIndex);
 
     const recency = currentSeasonYear - rec.startYear;
     let color = 'rgba(148,163,184,0.35)';
@@ -773,7 +787,7 @@ function renderToDateChart(records) {
           },
           title: {
             display: true,
-            text: 'Days into season (Jul 1 = Day 1)',
+            text: 'Days since first measurable snow (≥0.1")',
             color: textDim,
             font: { size: 12, weight: '600' }
           }
@@ -806,7 +820,7 @@ function renderToDateChart(records) {
           callbacks: {
             title: (items) => {
               const day = items[0]?.parsed?.x;
-              return Number.isFinite(day) ? `Day ${Math.round(day) + 1}` : 'Day';
+              return Number.isFinite(day) ? `Day ${Math.round(day) + 1} since first snow` : 'Day';
             },
             label: (ctx) => `${ctx.dataset.label}: ${formatInches(ctx.parsed.y)}"`
           }
