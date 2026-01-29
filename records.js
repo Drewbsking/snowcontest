@@ -717,16 +717,14 @@ function renderToDateChart(records) {
     if (firstMeasurableIndex < 0 || endIndex < firstMeasurableIndex) return;
 
     const data = [];
-    const rawBase = firstMeasurableIndex > 0 ? rec.cumulative[firstMeasurableIndex - 1] : 0;
-    const baseCum = Number.isFinite(rawBase) ? rawBase : 0;
     for (let i = firstMeasurableIndex; i <= endIndex; i += 1) {
       const val = rec.cumulative[i];
       if (typeof val === 'number' && !Number.isNaN(val)) {
-        data.push({ x: i - firstMeasurableIndex, y: val - baseCum });
+        data.push({ x: i, y: val });
       }
     }
     if (!data.length) return;
-    maxIndex = Math.max(maxIndex, endIndex - firstMeasurableIndex);
+    maxIndex = Math.max(maxIndex, endIndex);
 
     const recency = currentSeasonYear - rec.startYear;
     let color = 'rgba(148,163,184,0.35)';
@@ -787,7 +785,7 @@ function renderToDateChart(records) {
           },
           title: {
             display: true,
-            text: 'Days since first measurable snow (≥0.1")',
+            text: 'Days into season (Jul 1 = Day 1)',
             color: textDim,
             font: { size: 12, weight: '600' }
           }
@@ -820,7 +818,7 @@ function renderToDateChart(records) {
           callbacks: {
             title: (items) => {
               const day = items[0]?.parsed?.x;
-              return Number.isFinite(day) ? `Day ${Math.round(day) + 1} since first snow` : 'Day';
+              return Number.isFinite(day) ? `Day ${Math.round(day) + 1}` : 'Day';
             },
             label: (ctx) => `${ctx.dataset.label}: ${formatInches(ctx.parsed.y)}"`
           }
