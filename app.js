@@ -195,6 +195,11 @@ const contestantCountEls = {
   note: document.getElementById('contestant-count-note')
 };
 
+const runningCountEls = {
+  cardNote: document.getElementById('contestant-running-note'),
+  leaders: document.getElementById('seasonal-running-body')
+};
+
 const guessCsvLinkEl = document.getElementById('guess-csv-link');
 
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
@@ -395,6 +400,12 @@ function setContestantCountMessage(message) {
   if (!contestantCountEls.value) return;
   resetAnimatedNumber(contestantCountEls.value);
   if (contestantCountEls.note) contestantCountEls.note.textContent = message;
+  setRunningCountMessages(message);
+}
+
+function setRunningCountMessages(cardMessage, leadersMessage = cardMessage) {
+  if (runningCountEls.cardNote) runningCountEls.cardNote.textContent = cardMessage;
+  if (runningCountEls.leaders) runningCountEls.leaders.textContent = leadersMessage;
 }
 
 function setContestantCountData(guesses) {
@@ -1257,6 +1268,81 @@ function pickAbsoluteClosestResult(guesses, target) {
   return { winners, margin: best };
 }
 
+function computeRunningContestantCount(guesses, currentTotal) {
+  if (!Array.isArray(guesses) || !guesses.length || !Number.isFinite(currentTotal)) {
+    return null;
+  }
+
+  const countsByGuess = new Map();
+  guesses.forEach(entry => {
+    if (!entry || !Number.isFinite(entry.guess)) return;
+    const guess = entry.guess;
+    countsByGuess.set(guess, (countsByGuess.get(guess) || 0) + 1);
+  });
+
+  const uniqueGuesses = Array.from(countsByGuess.keys()).sort((a, b) => a - b);
+  if (!uniqueGuesses.length) return null;
+
+  const epsilon = 1e-6;
+  let running = 0;
+  for (let i = 0; i < uniqueGuesses.length; i++) {
+    const currentGuess = uniqueGuesses[i];
+    const upperBound = (i === uniqueGuesses.length - 1)
+      ? Infinity
+      : (currentGuess + uniqueGuesses[i + 1]) / 2;
+    // If the interval where this guess is closest extends to the current total, it can still win.
+    if (upperBound + epsilon >= currentTotal) {
+      running += countsByGuess.get(currentGuess) || 0;
+    }
+  }
+
+  return running;
+}
+
+function updateRunningCountDisplay({ parsedYear, revealOpen, guesses, seasonTotal, seasonStage }) {
+  const totalEntries = Array.isArray(guesses) ? guesses.length : 0;
+
+  if (!Number.isFinite(parsedYear)) {
+    setRunningCountMessages('Select a season to see contenders.');
+    return;
+  }
+
+  if (!revealOpen) {
+    setRunningCountMessages(`Contenders hidden until ${getRevealLabelET()}.`);
+    return;
+  }
+
+  if (!totalEntries) {
+    setRunningCountMessages('No guesses submitted yet.');
+    return;
+  }
+
+  if (!Number.isFinite(seasonTotal)) {
+    setRunningCountMessages('Season total unavailable.');
+    return;
+  }
+
+  if (seasonStage === 'done') {
+    const finalResult = pickAbsoluteClosestResult(guesses, seasonTotal);
+    const winnerCount = finalResult?.winners?.length || 0;
+    const winnerLabel = `${winnerCount} winner${winnerCount === 1 ? '' : 's'}`;
+    const noteMessage = `Season complete: ${winnerLabel}`;
+    const detailMessage = `Season complete · ${winnerLabel} closest to ${formatInches(seasonTotal)}"`;
+    setRunningCountMessages(noteMessage, detailMessage);
+    return;
+  }
+
+  const runningCount = computeRunningContestantCount(guesses, seasonTotal);
+  if (!Number.isFinite(runningCount)) {
+    setRunningCountMessages('Unable to calculate contenders.');
+    return;
+  }
+
+  const noteMessage = `Still in running (season total): ${runningCount}`;
+  const detailMessage = `${runningCount} of ${totalEntries} ${totalEntries === 1 ? 'contestant' : 'contestants'} still in running for the season total.`;
+  setRunningCountMessages(noteMessage, detailMessage);
+}
+
 async function updateContestResults(startYearInput, seasonDataOverride) {
   const seasonalEl = document.getElementById('seasonal-result-body');
   const holidayResultEl = document.getElementById('holiday-result-body');
@@ -1281,6 +1367,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   if (!Number.isFinite(parsedYear)) {
     seasonalEl.textContent = 'Select a season above to view standings.';
     setGuessStatsMessage('Select a season to view guesses.');
+    setRunningCountMessages('Select a season to see contenders.');
     if (holidayResultEl) {
       holidayResultEl.textContent = 'Select a season to see holiday calls.';
     }
@@ -1351,6 +1438,7 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
         holidayResultEl.textContent = 'Unable to load holiday results right now.';
       }
       setHolidayPayoutMessage('Unable to load holiday payouts right now.');
+      setRunningCountMessages('Unable to load contender count right now.');
       return;
     }
   }
@@ -1409,6 +1497,14 @@ async function updateContestResults(startYearInput, seasonDataOverride) {
   renderHolidayResults(parsedYear, daily, guesses, revealOpen);
   renderHolidayPayouts(parsedYear, daily, guesses, revealOpen);
   seasonalEl.innerHTML = seasonalMessage;
+
+  updateRunningCountDisplay({
+    parsedYear,
+    revealOpen,
+    guesses,
+    seasonTotal,
+    seasonStage
+  });
 
   const footerUpdatedEl = document.getElementById('data-updated');
   if (footerUpdatedEl) {
