@@ -806,7 +806,7 @@ function renderToDateChart(records) {
   }
 
   const seasonWindowStart = getSeasonDayIndex(currentSeasonYear, 9, 1); // Oct 1
-  const seasonWindowEnd = getSeasonDayIndex(currentSeasonYear, 3, 30); // Apr 30
+  const seasonWindowEnd = getSeasonDayIndex(currentSeasonYear, 4, 31); // May 31
   const xMin = seasonWindowStart;
   const xMax = Math.min(maxIndex, seasonWindowEnd);
   const monthTicks = buildSeasonMonthTicks(currentSeasonYear)
@@ -836,7 +836,7 @@ function renderToDateChart(records) {
           },
           title: {
             display: true,
-            text: 'Month in season (Oct → Apr)',
+            text: 'Month in season (Oct → May)',
             color: textDim,
             font: { size: 12, weight: '600' }
           }
