@@ -101,6 +101,13 @@ function buildSeasonMonthTicks(startYear) {
   return ticks;
 }
 
+function getSeasonDayIndex(startYear, monthIndex, dayOfMonth) {
+  const seasonStart = makeUtcDate(startYear, 6, 1);
+  const targetYear = monthIndex >= 6 ? startYear : startYear + 1;
+  const targetDate = makeUtcDate(targetYear, monthIndex, dayOfMonth);
+  return Math.floor((targetDate - seasonStart) / MS_PER_DAY);
+}
+
 function getNthWeekdayOfMonth(year, month1to12, weekday0to6, nth) {
   const firstOfMonth = new Date(year, month1to12 - 1, 1);
   const firstWeekday = firstOfMonth.getDay();
@@ -719,7 +726,6 @@ function renderToDateChart(records) {
   const sorted = [...records].sort((a, b) => a.startYear - b.startYear);
   const datasets = [];
   let maxIndex = 0;
-  let earliestIndex = null;
 
   const recentPalette = ['#38bdf8', '#f59e0b', '#34d399', '#f87171', '#22d3ee', '#60a5fa'];
 
@@ -741,9 +747,6 @@ function renderToDateChart(records) {
       }
     }
     if (firstMeasurableIndex < 0 || endIndex < firstMeasurableIndex) return;
-    if (earliestIndex == null || firstMeasurableIndex < earliestIndex) {
-      earliestIndex = firstMeasurableIndex;
-    }
 
     const data = [];
     for (let i = firstMeasurableIndex; i <= endIndex; i += 1) {
@@ -794,9 +797,12 @@ function renderToDateChart(records) {
     toDateChart.destroy();
   }
 
-  const xMin = earliestIndex == null ? 0 : earliestIndex;
+  const seasonWindowStart = getSeasonDayIndex(currentSeasonYear, 9, 1); // Oct 1
+  const seasonWindowEnd = getSeasonDayIndex(currentSeasonYear, 3, 30); // Apr 30
+  const xMin = seasonWindowStart;
+  const xMax = Math.min(maxIndex, seasonWindowEnd);
   const monthTicks = buildSeasonMonthTicks(currentSeasonYear)
-    .filter((tick) => tick.value >= xMin && tick.value <= maxIndex);
+    .filter((tick) => tick.value >= xMin && tick.value <= xMax);
   const monthLabelByValue = new Map(monthTicks.map((tick) => [tick.value, tick.label]));
   toDateChart = new Chart(toDateChartEl, {
     type: 'line',
@@ -809,7 +815,7 @@ function renderToDateChart(records) {
         x: {
           type: 'linear',
           min: xMin,
-          max: maxIndex,
+          max: xMax,
           afterBuildTicks: (scale) => {
             if (!monthTicks.length) return;
             scale.ticks = monthTicks.map((tick) => ({ value: tick.value }));
@@ -822,7 +828,7 @@ function renderToDateChart(records) {
           },
           title: {
             display: true,
-            text: 'Month in season (Jul → Jun)',
+            text: 'Month in season (Oct → Apr)',
             color: textDim,
             font: { size: 12, weight: '600' }
           }
