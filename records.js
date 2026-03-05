@@ -79,6 +79,28 @@ function getSeasonToDateIndex(startYear, today) {
   return Math.max(0, diff);
 }
 
+function buildSeasonMonthTicks(startYear) {
+  const seasonStart = makeUtcDate(startYear, 6, 1);
+  const monthFormatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    timeZone: 'UTC'
+  });
+  const ticks = [];
+
+  for (let offset = 0; offset < 12; offset += 1) {
+    const monthIndex = (6 + offset) % 12;
+    const year = monthIndex >= 6 ? startYear : startYear + 1;
+    const monthStart = makeUtcDate(year, monthIndex, 1);
+    const value = Math.floor((monthStart - seasonStart) / MS_PER_DAY);
+    ticks.push({
+      value,
+      label: monthFormatter.format(monthStart)
+    });
+  }
+
+  return ticks;
+}
+
 function getNthWeekdayOfMonth(year, month1to12, weekday0to6, nth) {
   const firstOfMonth = new Date(year, month1to12 - 1, 1);
   const firstWeekday = firstOfMonth.getDay();
@@ -773,6 +795,9 @@ function renderToDateChart(records) {
   }
 
   const xMin = earliestIndex == null ? 0 : earliestIndex;
+  const monthTicks = buildSeasonMonthTicks(currentSeasonYear)
+    .filter((tick) => tick.value >= xMin && tick.value <= maxIndex);
+  const monthLabelByValue = new Map(monthTicks.map((tick) => [tick.value, tick.label]));
   toDateChart = new Chart(toDateChartEl, {
     type: 'line',
     data: { datasets },
@@ -785,15 +810,19 @@ function renderToDateChart(records) {
           type: 'linear',
           min: xMin,
           max: maxIndex,
+          afterBuildTicks: (scale) => {
+            if (!monthTicks.length) return;
+            scale.ticks = monthTicks.map((tick) => ({ value: tick.value }));
+          },
           grid: { color: gridColor },
           ticks: {
             color: textDim,
-            maxTicksLimit: 8,
-            callback: (value) => Math.round(value) + 1
+            maxTicksLimit: 12,
+            callback: (value) => monthLabelByValue.get(Math.round(value)) || ''
           },
           title: {
             display: true,
-            text: 'Days into season (Jul 1 = Day 1)',
+            text: 'Month in season (Jul → Jun)',
             color: textDim,
             font: { size: 12, weight: '600' }
           }
