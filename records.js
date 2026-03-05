@@ -703,7 +703,10 @@ function renderToDateChart(records) {
 
   sorted.forEach((rec) => {
     if (!Array.isArray(rec.cumulative) || !rec.cumulative.length) return;
-    const endIndex = Math.min(getSeasonToDateIndex(rec.startYear, today), rec.cumulative.length - 1);
+    const isCurrentSeason = rec.startYear === currentSeasonYear;
+    const endIndex = isCurrentSeason
+      ? Math.min(getSeasonToDateIndex(rec.startYear, today), rec.cumulative.length - 1)
+      : rec.cumulative.length - 1;
     if (endIndex < 0) return;
 
     let firstMeasurableIndex = -1;
@@ -834,7 +837,9 @@ function renderToDateChart(records) {
 
   if (toDateLabelEl) {
     const label = formatDateLabel(today);
-    toDateLabelEl.textContent = label ? `Through ${label}` : '';
+    toDateLabelEl.textContent = label
+      ? `Past seasons: full season · ${seasonLabel(currentSeasonYear)}: through ${label}`
+      : '';
   }
 }
 
