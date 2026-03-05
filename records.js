@@ -314,7 +314,9 @@ function computeSeasonStats(json, startYear) {
     startYear,
     label,
     firstSnow,
+    firstSnowDayIndex: firstIndex >= 0 ? firstIndex : null,
     lastSnow,
+    lastSnowDayIndex: lastIndex >= 0 ? lastIndex : null,
     heavyDayCount,
     longestLull: longest,
     longestStreak,
@@ -341,28 +343,26 @@ function renderSummary(records) {
   if (!summaryEl) return;
   summaryEl.innerHTML = '';
 
-  const byFirstSnow = records.filter((rec) => rec.firstSnow instanceof Date);
-  const byLastSnow = records.filter((rec) => rec.lastSnow instanceof Date);
+  const byFirstSnow = records.filter((rec) => Number.isInteger(rec.firstSnowDayIndex) && rec.firstSnow instanceof Date);
+  const byLastSnow = records.filter((rec) => Number.isInteger(rec.lastSnowDayIndex) && rec.lastSnow instanceof Date);
 
-  const earliestFirst = byFirstSnow.reduce((best, current) => {
+  const pickByDayIndex = (items, indexKey, findMax) => items.reduce((best, current) => {
     if (!best) return current;
-    return current.firstSnow < best.firstSnow ? current : best;
+    const bestIndex = best[indexKey];
+    const currentIndex = current[indexKey];
+    if (currentIndex === bestIndex) {
+      return current.startYear < best.startYear ? current : best;
+    }
+    return findMax ? (currentIndex > bestIndex ? current : best) : (currentIndex < bestIndex ? current : best);
   }, null);
 
-  const latestFirst = byFirstSnow.reduce((best, current) => {
-    if (!best) return current;
-    return current.firstSnow > best.firstSnow ? current : best;
-  }, null);
+  const earliestFirst = pickByDayIndex(byFirstSnow, 'firstSnowDayIndex', false);
 
-  const earliestLast = byLastSnow.reduce((best, current) => {
-    if (!best) return current;
-    return current.lastSnow < best.lastSnow ? current : best;
-  }, null);
+  const latestFirst = pickByDayIndex(byFirstSnow, 'firstSnowDayIndex', true);
 
-  const latestLast = byLastSnow.reduce((best, current) => {
-    if (!best) return current;
-    return current.lastSnow > best.lastSnow ? current : best;
-  }, null);
+  const earliestLast = pickByDayIndex(byLastSnow, 'lastSnowDayIndex', false);
+
+  const latestLast = pickByDayIndex(byLastSnow, 'lastSnowDayIndex', true);
 
   const longestDrought = records.reduce((best, current) => {
     if (!best) return current;
@@ -417,6 +417,7 @@ function renderSummary(records) {
       title: 'Earliest First Snow',
       date: earliestFirst.firstSnow,
       season: earliestFirst.label,
+      seasonDayIndex: earliestFirst.firstSnowDayIndex,
       type: 'earliest-first'
     });
   }
@@ -425,6 +426,7 @@ function renderSummary(records) {
       title: 'Latest First Snow',
       date: latestFirst.firstSnow,
       season: latestFirst.label,
+      seasonDayIndex: latestFirst.firstSnowDayIndex,
       type: 'latest-first'
     });
   }
@@ -433,6 +435,7 @@ function renderSummary(records) {
       title: 'Earliest Last Snow',
       date: earliestLast.lastSnow,
       season: earliestLast.label,
+      seasonDayIndex: earliestLast.lastSnowDayIndex,
       type: 'earliest-last'
     });
   }
@@ -441,12 +444,17 @@ function renderSummary(records) {
       title: 'Latest Last Snow',
       date: latestLast.lastSnow,
       season: latestLast.label,
+      seasonDayIndex: latestLast.lastSnowDayIndex,
       type: 'latest-last'
     });
   }
 
   if (timelineEvents.length) {
-    const sortedEvents = timelineEvents.slice().sort((a, b) => a.date - b.date);
+    const sortedEvents = timelineEvents.slice().sort((a, b) => {
+      const aIndex = Number.isInteger(a.seasonDayIndex) ? a.seasonDayIndex : 0;
+      const bIndex = Number.isInteger(b.seasonDayIndex) ? b.seasonDayIndex : 0;
+      return aIndex - bIndex;
+    });
     const timeline = document.createElement('div');
     timeline.className = 'record-timeline';
     const track = document.createElement('div');
