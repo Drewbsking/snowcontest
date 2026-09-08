@@ -158,6 +158,78 @@ body {
   text-decoration: underline;
 }
 
+.top-nav a[aria-current="page"] {
+  color: var(--text-main);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: .25rem;
+}
+
+.live-tv-card {
+  min-width: 0;
+}
+
+.live-tv-heading,
+.live-tv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.live-tv-heading {
+  margin-bottom: 1rem;
+}
+
+.live-tv-heading h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 1rem + 1.5vw, 2rem);
+  font-weight: 600;
+}
+
+.live-tv-heading p {
+  margin: .25rem 0 0;
+  color: var(--text-dim);
+}
+
+.live-tv-badge {
+  padding: .3rem .65rem;
+  border: 1px solid rgba(56,189,248,0.45);
+  border-radius: .5rem;
+  background: rgba(56,189,248,0.1);
+  color: #7dd3fc;
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+.live-tv-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: .65rem;
+}
+
+.live-tv-toolbar {
+  margin-top: .85rem;
+}
+
+.live-tv-status {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: .9rem;
+}
+
+.live-tv-status.is-error {
+  color: #fda4af;
+}
+
+.live-tv-card :focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 4px;
+}
+
 .cta-banner {
   position: relative;
   margin: 0 auto clamp(0.75rem, 1.8vw, 1.25rem);

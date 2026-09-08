@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="description" content="Watch the FOX 2 Detroit live stream on the RCOC Snowfall Contest site." />
+<title>Live TV · RCOC Snowfall Contest</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+</head>
+<body>
+<div class="top-bar">
+  <div class="brand-block">
+    <img src="rcoc-logo.jpg" alt="RCOC logo" class="brand-logo" />
+    <div class="brand-text">
+      <span class="brand-title">RCOC Snowfall Contest Tracker</span>
+      <span class="brand-sub">White Lake 4E, MI</span>
+    </div>
+  </div>
+  <nav class="top-nav" aria-label="Main navigation">
+    <a href="index.html">Dashboard</a>
+    <a href="custom-range.html">Date Range</a>
+    <a href="records.html">Season Records</a>
+    <a href="rules.html">Contest Rules</a>
+    <a href="winners.html">Past Winners</a>
+    <a href="historic-winners.html">Historic Winners</a>
+    <a href="live-tv.html" aria-current="page">Live TV</a>
+  </nav>
+</div>
+
+<main class="wrap">
+  <section class="card live-tv-card" aria-labelledby="stream-title">
+    <header class="live-tv-heading">
+      <div>
+        <h1 id="stream-title">FOX 2 Detroit</h1>
+        <p>Local news and weather, streaming live.</p>
+      </div>
+      <span class="live-tv-badge">Live TV</span>
+    </header>
+    <video id="live-video" class="live-tv-video" controls playsinline preload="metadata" aria-label="FOX 2 Detroit live stream" aria-describedby="stream-status">
+      Your browser does not support embedded video. Use the stream link below to watch.
+    </video>
+    <div class="live-tv-toolbar">
+      <p id="stream-status" class="live-tv-status" role="status" aria-live="polite">Loading stream…</p>
+      <button id="reload-stream" class="btn-secondary" type="button" hidden>Reload stream</button>
+    </div>
+    <p class="footnote">Use the player controls for sound, captions when available, and full screen.
+      <a id="stream-link" href="https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg00488-foxdigital-fox2detroitwjbk-vizious/playlist.m3u8" target="_blank" rel="noopener noreferrer">Open stream directly</a> in a compatible player.
+    </p>
+    <noscript><p class="live-tv-status">Enable JavaScript to watch here, or open the stream directly using the link above.</p></noscript>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-wrap">
+    <span>Stream provided by FOX 2 Detroit</span>
+    <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://github.com/Drewbsking/snowcontest" target="_blank" rel="noopener">Crafted by Andrew Bates</a>
+  </div>
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.2/dist/hls.min.js" defer></script>
+<script src="live-tv.js" defer></script>
+<script src="snow.js" defer></script>
+</body>
+</html>
