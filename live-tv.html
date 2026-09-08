@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<meta name="description" content="Watch FOX 2 Detroit and WeatherNation live on the RCOC Snowfall Contest site." />
+<meta name="description" content="Watch FOX 2 Detroit, WeatherNation, AccuWeather, FOX Weather, and NorCast live on the RCOC Snowfall Contest site." />
 <title>Live TV · RCOC Snowfall Contest</title>
 <link rel="stylesheet" href="styles.css" />
 <link rel="icon" type="image/x-icon" href="favicon.ico" />
@@ -42,6 +42,9 @@
       <select id="channel-select">
         <option value="https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg00488-foxdigital-fox2detroitwjbk-vizious/playlist.m3u8" data-description="Local news and weather, streaming live.">FOX 2 Detroit</option>
         <option value="https://d2ferbiwcx1539.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-8zd06wicndthf-ssai-prd/WNNationalSamsung/WNNationalSamsung.m3u8" data-description="National weather coverage, streaming live.">WeatherNation</option>
+        <option value="https://cdn-ue1-prod.tsv2.amagi.tv/linear/amg00684-accuweather-accuweather-plex/playlist.m3u8" data-description="Weather news and forecasts, streaming live.">AccuWeather</option>
+        <option value="https://247wlive.foxweather.com/stream/index.m3u8" data-description="Weather updates and coverage, streaming live.">FOX Weather</option>
+        <option value="https://norcast-weather.streamology.live/api/v1/streams/c1b5b114698e1ad4687153c4402d5ef0/live.m3u8" data-description="Weather coverage from NorCast, streaming live.">NorCast</option>
       </select>
     </div>
     <video id="live-video" class="live-tv-video" controls playsinline preload="metadata" aria-label="FOX 2 Detroit live stream" aria-describedby="stream-status">
@@ -54,7 +57,18 @@
     <p class="footnote">Use the player controls for sound, captions when available, and full screen.
       <a id="stream-link" href="https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg00488-foxdigital-fox2detroitwjbk-vizious/playlist.m3u8" target="_blank" rel="noopener noreferrer">Open stream directly</a> in a compatible player.
     </p>
-    <noscript><p class="live-tv-status">Enable JavaScript to watch here, or open FOX 2 Detroit using the link above or <a href="https://d2ferbiwcx1539.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-8zd06wicndthf-ssai-prd/WNNationalSamsung/WNNationalSamsung.m3u8" target="_blank" rel="noopener noreferrer">open WeatherNation directly</a> in a compatible player.</p></noscript>
+    <noscript>
+      <div class="footnote">
+        <p>Enable JavaScript to switch channels and watch here, or open a stream directly in a compatible player:</p>
+        <ul>
+          <li><a href="https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg00488-foxdigital-fox2detroitwjbk-vizious/playlist.m3u8" target="_blank" rel="noopener noreferrer">FOX 2 Detroit</a></li>
+          <li><a href="https://d2ferbiwcx1539.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-8zd06wicndthf-ssai-prd/WNNationalSamsung/WNNationalSamsung.m3u8" target="_blank" rel="noopener noreferrer">WeatherNation</a></li>
+          <li><a href="https://cdn-ue1-prod.tsv2.amagi.tv/linear/amg00684-accuweather-accuweather-plex/playlist.m3u8" target="_blank" rel="noopener noreferrer">AccuWeather</a></li>
+          <li><a href="https://247wlive.foxweather.com/stream/index.m3u8" target="_blank" rel="noopener noreferrer">FOX Weather</a></li>
+          <li><a href="https://norcast-weather.streamology.live/api/v1/streams/c1b5b114698e1ad4687153c4402d5ef0/live.m3u8" target="_blank" rel="noopener noreferrer">NorCast</a></li>
+        </ul>
+      </div>
+    </noscript>
   </section>
 </main>
 
