@@ -2,7 +2,9 @@
   const video = document.getElementById('live-video');
   const status = document.getElementById('stream-status');
   const reloadButton = document.getElementById('reload-stream');
-  const streamUrl = document.getElementById('stream-link').href;
+  const streamLink = document.getElementById('stream-link');
+  const channelSelect = document.getElementById('channel-select');
+  let channelName = '';
   let hls = null;
   let failed = false;
 
@@ -29,6 +31,14 @@
 
   function startStream() {
     destroyPlayer();
+    const channel = channelSelect.selectedOptions[0];
+    const streamUrl = channel.value;
+    channelName = channel.textContent;
+    document.getElementById('stream-title').textContent = channelName;
+    document.getElementById('stream-description').textContent = channel.dataset.description;
+    document.getElementById('stream-attribution').textContent = `Stream provided by ${channelName}`;
+    video.setAttribute('aria-label', `${channelName} live stream`);
+    streamLink.href = streamUrl;
     failed = false;
     reloadButton.hidden = false;
     setStatus('Loading stream…');
@@ -58,11 +68,11 @@
 
   video.addEventListener('canplay', () => {
     if (!failed) {
-      setStatus(video.paused ? 'Ready to watch. Press play to start.' : 'Playing FOX 2 Detroit.');
+      setStatus(video.paused ? 'Ready to watch. Press play to start.' : `Playing ${channelName}.`);
     }
   });
   video.addEventListener('playing', () => {
-    if (!failed) setStatus('Playing FOX 2 Detroit.');
+    if (!failed) setStatus(`Playing ${channelName}.`);
   });
   video.addEventListener('pause', () => {
     if (!failed && video.readyState > 0) setStatus('Paused. Press play to resume.');
@@ -79,6 +89,9 @@
       showError('The stream could not be played. Try reloading the stream.');
     }
   });
+
+  document.getElementById('channel-picker').hidden = false;
+  channelSelect.addEventListener('change', startStream);
 
   reloadButton.addEventListener('click', () => {
     if (!window.Hls && !video.canPlayType('application/vnd.apple.mpegurl')) {

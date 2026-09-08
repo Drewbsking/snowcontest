@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<meta name="description" content="Watch the FOX 2 Detroit live stream on the RCOC Snowfall Contest site." />
+<meta name="description" content="Watch FOX 2 Detroit and WeatherNation live on the RCOC Snowfall Contest site." />
 <title>Live TV · RCOC Snowfall Contest</title>
 <link rel="stylesheet" href="styles.css" />
 <link rel="icon" type="image/x-icon" href="favicon.ico" />
@@ -33,10 +33,17 @@
     <header class="live-tv-heading">
       <div>
         <h1 id="stream-title">FOX 2 Detroit</h1>
-        <p>Local news and weather, streaming live.</p>
+        <p id="stream-description">Local news and weather, streaming live.</p>
       </div>
       <span class="live-tv-badge">Live TV</span>
     </header>
+    <div id="channel-picker" class="live-tv-channels" hidden>
+      <label for="channel-select">Channel</label>
+      <select id="channel-select">
+        <option value="https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg00488-foxdigital-fox2detroitwjbk-vizious/playlist.m3u8" data-description="Local news and weather, streaming live.">FOX 2 Detroit</option>
+        <option value="https://d2ferbiwcx1539.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-8zd06wicndthf-ssai-prd/WNNationalSamsung/WNNationalSamsung.m3u8" data-description="National weather coverage, streaming live.">WeatherNation</option>
+      </select>
+    </div>
     <video id="live-video" class="live-tv-video" controls playsinline preload="metadata" aria-label="FOX 2 Detroit live stream" aria-describedby="stream-status">
       Your browser does not support embedded video. Use the stream link below to watch.
     </video>
@@ -47,13 +54,13 @@
     <p class="footnote">Use the player controls for sound, captions when available, and full screen.
       <a id="stream-link" href="https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg00488-foxdigital-fox2detroitwjbk-vizious/playlist.m3u8" target="_blank" rel="noopener noreferrer">Open stream directly</a> in a compatible player.
     </p>
-    <noscript><p class="live-tv-status">Enable JavaScript to watch here, or open the stream directly using the link above.</p></noscript>
+    <noscript><p class="live-tv-status">Enable JavaScript to watch here, or open FOX 2 Detroit using the link above or <a href="https://d2ferbiwcx1539.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-8zd06wicndthf-ssai-prd/WNNationalSamsung/WNNationalSamsung.m3u8" target="_blank" rel="noopener noreferrer">open WeatherNation directly</a> in a compatible player.</p></noscript>
   </section>
 </main>
 
 <footer class="site-footer">
   <div class="footer-wrap">
-    <span>Stream provided by FOX 2 Detroit</span>
+    <span id="stream-attribution">Stream provided by FOX 2 Detroit</span>
     <span class="footer-sep">·</span>
     <a class="footer-link" href="https://github.com/Drewbsking/snowcontest" target="_blank" rel="noopener">Crafted by Andrew Bates</a>
   </div>

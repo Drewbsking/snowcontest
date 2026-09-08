@@ -211,6 +211,30 @@ body {
   border-radius: .65rem;
 }
 
+.live-tv-channels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem .75rem;
+  margin-bottom: 1rem;
+  font-size: .9rem;
+}
+
+.live-tv-channels label {
+  color: var(--text-dim);
+}
+
+.live-tv-channels select {
+  max-width: 100%;
+  padding: .55rem .75rem;
+  border: 1px solid #475569;
+  border-radius: .5rem;
+  background: var(--bg);
+  color: var(--text-main);
+  font: inherit;
+  cursor: pointer;
+}
+
 .live-tv-toolbar {
   margin-top: .85rem;
 }
