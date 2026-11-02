@@ -164,6 +164,7 @@
   </div>
 
   <script src="snow.js" defer></script>
+  <script src="guess-utils.js"></script>
   <script>
     const guessSheetConfigs = [
       { startYear: 2012, file: null },
@@ -179,7 +180,8 @@
       { startYear: 2022, file: 'Guesses/2022-2023 RCOC Snow Contest(Sheet1).csv' },
       { startYear: 2023, file: 'Guesses/2023-2024 RCOC Snow Contest(Sheet1).csv' },
       { startYear: 2024, file: 'Guesses/2024-2025 RCOC Snow Contest(Sheet1).csv' },
-      { startYear: 2025, file: 'Guesses/2025-2026 RCOC Snow Contest(Sheet1).csv' }
+      { startYear: 2025, file: 'Guesses/2025-2026 RCOC Snow Contest(Sheet1).csv' },
+      { startYear: 2026, file: 'Guesses/2026-2027 RCOC Snow Contest(Sheet1).csv' }
     ];
 
     // Reveal control for current season guesses
@@ -361,14 +363,10 @@
         const rawEmail = get(emailIdx);
         const rawDept = get(deptIdx);
         const rawGuess = get(guessIdx);
-        const name = (rawAlias ?? rawName ?? rawEmail ?? '').toString().trim();
-        let guessVal = null;
-        if (typeof rawGuess === 'number') {
-          guessVal = rawGuess;
-        } else if (rawGuess != null) {
-          const parsed = parseFloat(String(rawGuess).replace(/[^0-9.\-]/g, ''));
-          if (Number.isFinite(parsed)) guessVal = parsed;
-        }
+        const name = [rawAlias, rawName, rawEmail]
+          .map(value => value == null ? '' : String(value).trim())
+          .find(value => value.length > 0) || '';
+        const guessVal = parseOfficialGuess(rawGuess);
         return {
           name,
           dept: rawDept == null ? '' : String(rawDept).trim(),
@@ -378,7 +376,7 @@
     }
 
     async function fetchSeasonData(startYear) {
-      const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(startYear));
+      const res = await fetch('snowdata.php?v=2&startYear=' + encodeURIComponent(startYear));
       if (!res.ok) throw new Error('Failed to load snowfall data for ' + startYear);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -422,7 +420,20 @@
         const results = [];
         for (const config of guessSheetConfigs) {
           const revealOpen = isGuessRevealOpen(config.startYear);
-          const seasonData = await fetchSeasonData(config.startYear);
+          let seasonData;
+          try {
+            seasonData = await fetchSeasonData(config.startYear);
+          } catch (err) {
+            console.warn('Season data unavailable for', config.startYear, err);
+            results.push({
+              seasonLabel: `${config.startYear}-${config.startYear + 1}`,
+              statusText: 'Data unavailable.',
+              seasonText: '<span class="detail">Unable to load this season. Please try again later.</span>',
+              rangeText: 'Jul 1 → Jun 30',
+              startYear: config.startYear
+            });
+            continue;
+          }
           let guesses = [];
           if (revealOpen) {
             try {
@@ -438,7 +449,9 @@
 
           const today = new Date();
           const seasonEndDate = parseISODate(seasonEndIso);
-          const seasonDone = seasonEndDate && today > seasonEndDate;
+          const seasonEndExclusive = seasonEndDate ? new Date(seasonEndDate) : null;
+          if (seasonEndExclusive) seasonEndExclusive.setHours(24, 0, 0, 0);
+          const seasonDone = seasonEndExclusive && today >= seasonEndExclusive;
 
           let seasonTotal = Number.isFinite(seasonData.seasonal_total_in)
             ? seasonData.seasonal_total_in

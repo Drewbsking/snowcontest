@@ -24,7 +24,8 @@ if ($wantCsv) {
 }
 header('Access-Control-Allow-Origin: *');
 
-// Note: Cache-Control header will be set later after we determine if season is active
+// Keep browser caches short even for historical totals, which ACIS can revise.
+header('Cache-Control: public, max-age=900, must-revalidate');
 date_default_timezone_set('America/Detroit');
 
 // -------- CONFIG: lock to your station from the JSON you provided --------
@@ -47,14 +48,12 @@ $SEASON_START_DATE = $startYear . '-07-01';
 $SEASON_END_DATE   = ($startYear + 1) . '-06-30';
 $SEASON_LABEL      = $startYear . '-' . ($startYear + 1);
 
-// Figure out if this season is currently "active" (seasonal window)
-$today = date('Y-m-d');
-$isActiveSeason = ($today >= $SEASON_START_DATE && $today <= $SEASON_END_DATE);
-
-// Cache policy
-// Active season: refresh at most once/hour (3600s)
-// Past seasons: basically permanent (~1 year)
-$CACHE_TTL_SECONDS = $isActiveSeason ? 3600 : 31536000; // 1h vs ~1yr
+// Refresh hourly through the first week after June 30, then daily.
+// Incomplete data stays on the hourly schedule regardless of season age.
+$now = time();
+$seasonClose = (new DateTimeImmutable($SEASON_END_DATE))->modify('+1 day')->getTimestamp();
+$CACHE_TTL_SECONDS = $now < $seasonClose + 7 * 86400 ? 3600 : 86400;
+$CACHE_VERSION = 2;
 
 // Ensure cache directory exists
 $cacheDir = __DIR__ . '/cache';
@@ -64,20 +63,25 @@ if (!is_dir($cacheDir)) {
 $cacheFile = $cacheDir . '/snow_' . $startYear . '.json';
 
 // Serve cached if still fresh AND already has the updated seasonal fields
-if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECONDS)) {
+if (file_exists($cacheFile)) {
     $cachedRaw = @file_get_contents($cacheFile);
     $cached = $cachedRaw ? json_decode($cachedRaw, true) : null;
+    $cacheTime = filemtime($cacheFile);
+    $cacheTtl = ($cached['data_complete'] ?? false) ? $CACHE_TTL_SECONDS : 3600;
+    $cacheFresh = ($now - $cacheTime < $cacheTtl)
+        && ($now < $seasonClose || $cacheTime >= $seasonClose);
 
     $firstDaily = $cached['daily'][0] ?? null;
     $hasDailyFields = $firstDaily
         && array_key_exists('seasonal_cum', $firstDaily);
 
     $hasNewFields = $cached
+        && (($cached['cache_version'] ?? null) === $CACHE_VERSION)
         && isset($cached['seasonal_total_in'])
         && (($cached['season_start'] ?? null) === $SEASON_START_DATE)
         && $hasDailyFields;
 
-    if ($hasNewFields) {
+    if ($hasNewFields && $cacheFresh) {
         // Ensure back-compat keys even when serving cached data
         $upgrade = function($payload) use ($SEASON_START_DATE, $SEASON_END_DATE) {
             if (!$payload) return $payload;
@@ -104,15 +108,6 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $CACHE_TTL_SECO
             $payload['seasonal_end']   = $payload['seasonal_end']   ?? $payload['season_end'];
             return $payload;
         };
-
-        // Set Cache-Control header before serving cached data
-        if ($isActiveSeason) {
-            // Active season: cache for 15 minutes, must revalidate
-            header('Cache-Control: public, max-age=900, must-revalidate');
-        } else {
-            // Historical season: cache for 1 year, immutable
-            header('Cache-Control: public, max-age=31536000, immutable');
-        }
 
         if ($wantCsv && $cached) {
             // stream CSV from cached JSON
@@ -173,6 +168,7 @@ $stnData = get_station_snow_data($STATION_SID, $SEASON_START_DATE, $SEASON_END_D
 
 if (!$stnData || !isset($stnData['data'])) {
     // soft error, don't cache the error
+    header('Cache-Control: no-store');
     echo json_encode([
         'error'        => 'No snowfall data returned from ACIS',
         'station_sid'  => $STATION_SID,
@@ -227,6 +223,8 @@ $seasonalTotal = $seasonalCum;
 
 // -------- Final payload structure --------
 $payload = [
+    'cache_version'  => $CACHE_VERSION,
+    'data_complete' => !in_array(null, array_column($daily, 'snow'), true),
     'station_name'   => $STATION_NAME,
     'station_sid'    => $STATION_SID,
     'season_label'   => $SEASON_LABEL,
@@ -248,15 +246,6 @@ $payload = [
 
 // Cache it (success only)
 @file_put_contents($cacheFile, json_encode($payload));
-
-// Set Cache-Control header before serving fresh data
-if ($isActiveSeason) {
-    // Active season: cache for 15 minutes, must revalidate
-    header('Cache-Control: public, max-age=900, must-revalidate');
-} else {
-    // Historical season: cache for 1 year, immutable
-    header('Cache-Control: public, max-age=31536000, immutable');
-}
 
 if ($wantCsv) {
     $fn = 'snow_' . $startYear . '.csv';

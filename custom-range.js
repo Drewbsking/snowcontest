@@ -131,7 +131,7 @@
     if (seasonCache.has(startYear)) {
       return seasonCache.get(startYear);
     }
-    const promise = fetch(`snowdata.php?startYear=${encodeURIComponent(startYear)}`)
+    const promise = fetch(`snowdata.php?v=2&startYear=${encodeURIComponent(startYear)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load snowfall data for ${startYear}`);
         return res.json();

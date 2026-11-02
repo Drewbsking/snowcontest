@@ -33,7 +33,8 @@ const guessSheetConfigs = [
   { startYear: 2022, file: 'Guesses/2022-2023 RCOC Snow Contest(Sheet1).csv' },
   { startYear: 2023, file: 'Guesses/2023-2024 RCOC Snow Contest(Sheet1).csv' },
   { startYear: 2024, file: 'Guesses/2024-2025 RCOC Snow Contest(Sheet1).csv' },
-  { startYear: 2025, file: 'Guesses/2025-2026 RCOC Snow Contest(Sheet1).csv' }
+  { startYear: 2025, file: 'Guesses/2025-2026 RCOC Snow Contest(Sheet1).csv' },
+  { startYear: 2026, file: 'Guesses/2026-2027 RCOC Snow Contest(Sheet1).csv' }
 ];
 
 const guessCache = new Map();
@@ -787,6 +788,10 @@ function getHolidayListForSeason(startYear) {
   // Season spans Jul 1 (startYear) -> Jun 30 (startYear+1)
   const holidays = [];
   const nextYear = startYear + 1;
+  // Veterans Day joins the contest beginning with the 2026-27 season.
+  if (startYear >= 2026) {
+    holidays.push({ key: 'veterans', label: 'Veterans Day', date: new Date(startYear, 10, 11) });
+  }
   // Thanksgiving: 4th Thu in Nov of startYear
   const thanksgiving = getNthWeekdayOfMonth(startYear, 11, 4, 4);
   holidays.push({ key: 'thanksgiving', label: 'Thanksgiving', date: thanksgiving });
@@ -1027,7 +1032,9 @@ function getStage(now, start, end) {
     return 'unknown';
   }
   if (now < start) return 'pre';
-  if (now > end) return 'done';
+  const endExclusive = new Date(end);
+  endExclusive.setHours(24, 0, 0, 0);
+  if (now >= endExclusive) return 'done';
   return 'active';
 }
 
@@ -1148,6 +1155,7 @@ async function fetchGuessSheet(config) {
   // Holiday Yes/No columns
   const columnIndexFor = (pred) => normalized.findIndex(pred);
   const holidayColIdx = {
+    veterans: columnIndexFor(h => h.includes('veteran')),
     thanksgiving: columnIndexFor(h => h.includes('thanksgiving')),
     christmas: columnIndexFor(h => h.includes('christmas')),
     newyear: columnIndexFor(h => h.includes('newyear')), // matches 'newyearsday'
@@ -1175,19 +1183,14 @@ async function fetchGuessSheet(config) {
     const alias = trimValue(rawAlias);
     const fallbackName = trimValue(rawName);
     const name = alias || fallbackName || 'Anonymous';
-    let guessVal = null;
-    if (typeof rawGuess === 'number') {
-      guessVal = rawGuess;
-    } else if (rawGuess != null) {
-      const parsed = parseFloat(String(rawGuess).replace(/[^0-9.\-]/g, ''));
-      if (Number.isFinite(parsed)) guessVal = parsed;
-    }
+    const guessVal = parseOfficialGuess(rawGuess);
 
     return {
       name,
       dept: rawDept == null ? '' : String(rawDept).trim(),
       guess: guessVal,
       holidays: {
+        veterans: parseYesNo(get(holidayColIdx.veterans)),
         thanksgiving: parseYesNo(get(holidayColIdx.thanksgiving)),
         christmas: parseYesNo(get(holidayColIdx.christmas)),
         newyear: parseYesNo(get(holidayColIdx.newyear)),
@@ -1199,6 +1202,10 @@ async function fetchGuessSheet(config) {
 
   const sanitizedRows = rows.map((row, idx) => {
     const clone = Array.isArray(row) ? row.slice() : [];
+    if (idx > 0 && guessIdx >= 0) {
+      const officialGuess = parseOfficialGuess(clone[guessIdx]);
+      if (officialGuess != null) clone[guessIdx] = officialGuess.toFixed(1);
+    }
     if (idx > 0 && nameIdx >= 0 && aliasIdx >= 0) {
       const alias = trimValue(clone[aliasIdx]);
       if (alias) {
@@ -1228,7 +1235,7 @@ async function fetchSeasonTotals(startYear) {
     fetchOptions.cache = 'no-cache';
   }
 
-  const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(startYear), fetchOptions);
+  const res = await fetch('snowdata.php?v=2&startYear=' + encodeURIComponent(startYear), fetchOptions);
   if (!res.ok) {
     throw new Error(`Failed to load snowfall data for ${startYear}`);
   }
@@ -1613,7 +1620,7 @@ async function loadSeason(startYear) {
     }
 
     const res = await fetch(
-      'snowdata.php?startYear=' + encodeURIComponent(startYear),
+      'snowdata.php?v=2&startYear=' + encodeURIComponent(startYear),
       fetchOptions
     );
     const json = await res.json();
@@ -2200,7 +2207,7 @@ async function calculateSnowfallPrediction(currentSeasonData, currentDate) {
     let data = getCachedSeasonData(year);
     if (!data) {
       try {
-        const res = await fetch('snowdata.php?startYear=' + encodeURIComponent(year));
+        const res = await fetch('snowdata.php?v=2&startYear=' + encodeURIComponent(year));
         if (res.ok) {
           data = await res.json();
           if (!data.error) {
@@ -2791,7 +2798,7 @@ function syncDataLinks(year) {
   const jsonLink = document.getElementById('json-link');
   const csvLink = document.getElementById('csv-link');
   if (!Number.isFinite(year)) return;
-  const jsonHref = `snowdata.php?startYear=${encodeURIComponent(year)}`;
+  const jsonHref = `snowdata.php?v=2&startYear=${encodeURIComponent(year)}`;
   const csvHref = `${jsonHref}&format=csv`;
   if (jsonLink) jsonLink.href = jsonHref;
   if (csvLink) {

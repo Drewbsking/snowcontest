@@ -1,6 +1,6 @@
 const SEASON_START_YEARS = [
   2012, 2013, 2014, 2015, 2016, 2017, 2018,
-  2019, 2020, 2021, 2022, 2023, 2024, 2025
+  2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
 ];
 const MEASURABLE_THRESHOLD = 0.1;
 const HEAVY_DAY_THRESHOLD = 2.0;
@@ -121,6 +121,9 @@ function getNthWeekdayOfMonth(year, month1to12, weekday0to6, nth) {
 function getHolidayListForSeason(startYear) {
   const nextYear = startYear + 1;
   return [
+    ...(startYear >= 2026
+      ? [{ key: 'veterans', label: 'Veterans Day', date: new Date(startYear, 10, 11) }]
+      : []),
     { key: 'thanksgiving', label: 'Thanksgiving', date: getNthWeekdayOfMonth(startYear, 11, 4, 4) },
     { key: 'christmas', label: 'Christmas', date: new Date(startYear, 11, 25) },
     { key: 'newyear', label: "New Year’s Day", date: new Date(nextYear, 0, 1) },
@@ -887,7 +890,7 @@ function renderToDateChart(records) {
 }
 
 async function fetchSeasonData(startYear) {
-  const res = await fetch(`snowdata.php?startYear=${encodeURIComponent(startYear)}`);
+  const res = await fetch(`snowdata.php?v=2&startYear=${encodeURIComponent(startYear)}`);
   if (!res.ok) {
     throw new Error(`Failed to load season ${startYear}`);
   }
