@@ -93,7 +93,7 @@ test('Veterans Day appears in badges, consensus, results, and the $10 payout', (
   assert.equal(elements['holiday-payout-body'].textContent, 'No holiday payouts yet.');
 });
 
-test('2026-27 is connected to an empty import template with the new holiday column', async () => {
+test('2026-27 loads imported responses with aliases, guesses, and all six holiday calls', async () => {
   const file = 'Guesses/2026-2027 RCOC Snow Contest(Sheet1).csv';
   assert.match(read(file), /Veterans Day/);
   for (const page of ['dashboard', 'winners']) {
@@ -101,6 +101,29 @@ test('2026-27 is connected to an empty import template with the new holiday colu
     const config = vm.runInContext('guessSheetConfigs.find(config => config.startYear === 2026)', context);
     assert.equal(config.file, file);
     const result = await context.fetchGuessSheet(config);
-    assert.equal((page === 'dashboard' ? result.entries : result).length, 0);
+    const entries = page === 'dashboard' ? result.entries : result;
+    assert.deepEqual(Array.from(entries, entry => [entry.name, entry.guess]), [
+      ['Tom Cruise', 33.3],
+      ['Rachel Lipinski', 48.3],
+      ['Snow Day Specialist', 42.2],
+      ['Paint Guy', 38.8],
+      ['Robin', 40.8],
+      ['Jeremy', 52.3],
+      ['Billy Bob', 27.6],
+      ['snowman', 42.5]
+    ]);
+    if (page === 'dashboard') {
+      const keys = ['veterans', 'thanksgiving', 'christmas', 'newyear', 'mlk', 'presidents'];
+      assert.deepEqual(Array.from(entries, entry => keys.map(key => entry.holidays[key])), [
+        [false, false, false, false, false, false],
+        [false, false, true, true, false, true],
+        [false, true, false, false, true, true],
+        [false, false, true, true, false, false],
+        [false, false, true, true, true, false],
+        [false, false, false, true, true, true],
+        [false, false, true, false, false, false],
+        [false, false, true, true, true, false]
+      ]);
+    }
   }
 });
