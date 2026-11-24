@@ -110,7 +110,8 @@ test('2026-27 loads imported responses with aliases, guesses, and all six holida
       ['Robin', 40.8],
       ['Jeremy', 52.3],
       ['Billy Bob', 27.6],
-      ['snowman', 42.5]
+      ['snowman', 42.5],
+      ['Batman', 37.4]
     ]);
     if (page === 'dashboard') {
       const keys = ['veterans', 'thanksgiving', 'christmas', 'newyear', 'mlk', 'presidents'];
@@ -122,7 +123,8 @@ test('2026-27 loads imported responses with aliases, guesses, and all six holida
         [false, false, true, true, true, false],
         [false, false, false, true, true, true],
         [false, false, true, false, false, false],
-        [false, false, true, true, true, false]
+        [false, false, true, true, true, false],
+        [false, false, false, true, false, true]
       ]);
     }
   }
