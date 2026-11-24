@@ -1641,7 +1641,7 @@ async function loadSeason(startYear) {
       console.error(json.error);
 
       updatePredictionDisplay(null);
-      drawChart([], [], [], null, null, null, []);
+      drawChart([], [], []);
       if (Number.isFinite(parsedStartYear)) {
         seasonDataCache.delete(parsedStartYear);
         updateContestResults(parsedStartYear, null);
@@ -1690,6 +1690,8 @@ async function loadSeason(startYear) {
     const labels = [];
     const dailySnow = [];
     const seasonalCum = [];
+    const todayISO = formatISODate(now);
+    const lastReportedDate = formatISODate(determineLastDataDate(json.daily));
     const measurableThreshold = MEASURABLE_SNOW_THRESHOLD;
     const heavyThreshold = 2.0;
     const sixPlusThreshold = 6.0;
@@ -1760,13 +1762,14 @@ async function loadSeason(startYear) {
         }
       }
 
-      if (snowValue === null) {
+      if (snowValue === null && row.date <= todayISO) {
         missingDates.add(row.date);
       }
 
       labels.push(row.date);
       dailySnow.push(snowValue);
-      seasonalCum.push(row.seasonal_cum ?? null);
+      // ACIS pads the rest of the season; those dates are not observations yet.
+      seasonalCum.push(lastReportedDate && row.date <= lastReportedDate ? (row.seasonal_cum ?? null) : null);
 
       if (typeof snowValue === 'number' && !Number.isNaN(snowValue)) {
         if (largestDailyValue === null || snowValue > largestDailyValue) {
@@ -2058,7 +2061,7 @@ async function loadSeason(startYear) {
     // Update prediction display
     updatePredictionDisplay(prediction);
 
-    drawChart(labels, dailySnow, seasonalCum, firstSnowDay, lastSnowDay, prediction, missingDates);
+    drawChart(labels, dailySnow, seasonalCum, prediction, missingDates);
     if (Number.isFinite(parsedStartYear)) {
       setCachedSeasonData(parsedStartYear, json);
       updateContestResults(parsedStartYear, json);
@@ -2085,7 +2088,7 @@ async function loadSeason(startYear) {
     if (januaryNoteEl) januaryNoteEl.textContent = 'Unable to load';
     document.getElementById('largest-storm-note').textContent = 'Unable to load';
     updatePredictionDisplay(null);
-    drawChart([], [], [], null, null, null, []);
+    drawChart([], [], []);
     if (Number.isFinite(parsedStartYear)) {
       seasonDataCache.delete(parsedStartYear);
       updateContestResults(parsedStartYear, null);
@@ -2339,7 +2342,7 @@ async function calculateSnowfallPrediction(currentSeasonData, currentDate) {
 }
 
 // Draw or redraw Chart.js chart
-function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnowDay = null, predictionData = null, missingDates = []) {
+function drawChart(labels, dailySnow, seasonalCum, predictionData = null, missingDates = []) {
   const canvas = document.getElementById('snowChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -2347,14 +2350,6 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
 
   if (chartRef) {
     chartRef.destroy();
-  }
-
-  // Calculate x-axis limits based on first/last snowfall
-  let xAxisMin = undefined;
-  let xAxisMax = undefined;
-  if (firstSnowDay && lastSnowDay) {
-    xAxisMin = formatISODate(firstSnowDay);
-    xAxisMax = formatISODate(lastSnowDay);
   }
 
   const missingDateSet = new Set(
@@ -2508,8 +2503,8 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
     pluginOptions.zoom = {
       limits: {
         x: {
-          min: xAxisMin || 'original',
-          max: xAxisMax || 'original'
+          min: 'original',
+          max: 'original'
         },
         y: { min: 'original', max: 'original' }
       },
@@ -2555,7 +2550,8 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
       backgroundColor: barColors,
       borderColor: barBorderColors,
       borderWidth: barBorderWidths,
-      borderRadius: 3
+      borderRadius: 3,
+      maxBarThickness: 24
     },
     {
       type: 'line',
@@ -2681,8 +2677,7 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
       plugins: pluginOptions,
       scales: {
         x: {
-          min: xAxisMin,
-          max: xAxisMax,
+          // Keep the full season visible, even when only one day has snow.
           ticks: {
             maxTicksLimit: 10,
             maxRotation: 90,
@@ -2697,6 +2692,7 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
         },
         yDaily: {
           type: 'linear',
+          beginAtZero: true,
           position: 'left',
           title: {
             display: true,
@@ -2711,6 +2707,7 @@ function drawChart(labels, dailySnow, seasonalCum, firstSnowDay = null, lastSnow
         },
         yCum: {
           type: 'linear',
+          beginAtZero: true,
           position: 'right',
           title: {
             display: true,
